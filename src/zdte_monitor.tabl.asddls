@@ -6,7 +6,7 @@
 define table zdte_monitor {
 
   key mandt     : mandt not null;
-  "@<TIPO_DTE>  : 33=Factura Afecta, 34=Factura Exenta, 56=NC, 55=ND, 46=Factura Compra"
+  // 33=Factura Afecta, 34=Factura Exenta, 46=FC, 55=ND, 56=NC
   key tipo_dte  : abap.numc( 3 ) not null;
   key folio     : abap.char( 20 ) not null;
   key proveedor : abap.char( 10 ) not null;
@@ -21,7 +21,7 @@ define table zdte_monitor {
   fe_acept      : abap.dats;
   fe_venc       : abap.dats;
 
-  "@<ESTADO>: 01=Pendiente, 02=Aprobado, 03=Rechazado, 04=Por rechazar, 05=No procesado, 06=Contabilizado"
+  // 01=Pendiente, 02=Aprobado, 03=Rechazado, 04=Por rechazar, 05=No procesado, 06=Contabilizado
   estado        : abap.char( 2 );
 
   waers         : waers;

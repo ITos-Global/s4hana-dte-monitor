@@ -5,11 +5,11 @@
 define view entity ZC_DTE_MONITOR_H
   as projection on ZI_DTE_MONITOR_H
 {
-      @UI.lineItem: [{ position: 10, label: 'Seq.' }]
-  key SeqNo,
   key TipoDte,
   key Folio,
   key Proveedor,
+      @UI.lineItem: [{ position: 10, label: 'Seq.' }]
+  key SeqNo,
 
       @UI.lineItem: [{ position: 20, label: 'Fecha/Hora' }]
       Timestamp,

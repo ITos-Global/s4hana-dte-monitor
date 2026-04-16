@@ -13,9 +13,6 @@ define root view entity ZC_DTE_MONITOR
   provider contract transactional_query
   as projection on ZI_DTE_MONITOR
 {
-  //===========================================================================
-  // CLAVES
-  //===========================================================================
       @UI.lineItem:       [{ position: 10, label: 'Tipo DTE' }]
       @UI.selectionField: [{ position: 10 }]
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 10 }]
@@ -30,9 +27,6 @@ define root view entity ZC_DTE_MONITOR
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 30 }]
   key Proveedor,
 
-  //===========================================================================
-  // IDENTIFICACIÓN
-  //===========================================================================
       @UI.lineItem:       [{ position: 40, label: 'Sociedad' }]
       @UI.selectionField: [{ position: 30 }]
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 40 }]
@@ -45,9 +39,6 @@ define root view entity ZC_DTE_MONITOR
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 60 }]
       NombreProveedor,
 
-  //===========================================================================
-  // ESTADO (con criticality para colores automáticos)
-  //===========================================================================
       @UI.lineItem: [{
         position:    60,
         label:       'Estado',
@@ -58,11 +49,8 @@ define root view entity ZC_DTE_MONITOR
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 70 }]
       Estado,
 
-      Criticality, // Campo técnico — no mostrar en UI
+      Criticality,
 
-  //===========================================================================
-  // FECHAS
-  //===========================================================================
       @UI.lineItem:       [{ position: 70, label: 'Fecha Documento' }]
       @UI.selectionField: [{ position: 50 }]
       @UI.fieldGroup:     [{ qualifier: 'FechasFacet', position: 10 }]
@@ -71,7 +59,7 @@ define root view entity ZC_DTE_MONITOR
       @UI.fieldGroup:     [{ qualifier: 'FechasFacet', position: 20 }]
       FechaContabilizacion,
 
-      @UI.lineItem:       [{ position: 80, label: 'Recepción SII' }]
+      @UI.lineItem:       [{ position: 80, label: 'Recepcion SII' }]
       @UI.selectionField: [{ position: 60 }]
       @UI.fieldGroup:     [{ qualifier: 'FechasFacet', position: 30 }]
       FechaRecepcionSii,
@@ -83,28 +71,10 @@ define root view entity ZC_DTE_MONITOR
       @UI.fieldGroup:     [{ qualifier: 'FechasFacet', position: 50 }]
       FechaVencimiento,
 
-  //===========================================================================
-  // DÍAS PENDIENTES (con criticality dinámica)
-  //===========================================================================
-      @UI.lineItem: [{
-        position:    100,
-        label:       'Días Pend.',
-        criticality: 'CriticalityDias',
-        criticalityRepresentation: #WITH_ICON
-      }]
-      @UI.fieldGroup: [{ qualifier: 'GeneralData', position: 80 }]
+      @UI.lineItem:       [{ position: 100, label: 'Dias Pend.' }]
+      @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 80 }]
       DiasPendientes,
 
-      // Criticality para días pendientes: 2=Warning(5+), 1=Error(7+), 0=OK
-      case
-        when DiasPendientes >= 7 then cast( 1 as abap.int1 )
-        when DiasPendientes >= 5 then cast( 2 as abap.int1 )
-        else                          cast( 0 as abap.int1 )
-      end as CriticalityDias,
-
-  //===========================================================================
-  // MONTOS
-  //===========================================================================
       Moneda,
 
       @UI.lineItem:   [{ position: 110, label: 'Monto Neto' }]
@@ -130,9 +100,6 @@ define root view entity ZC_DTE_MONITOR
       @UI.fieldGroup: [{ qualifier: 'MontosFacet', position: 70 }]
       TotalDocumento,
 
-  //===========================================================================
-  // DOCUMENTOS SAP
-  //===========================================================================
       @UI.fieldGroup: [{ qualifier: 'DocSapFacet', position: 10 }]
       DocumentoFacturaSap,
 
@@ -154,17 +121,11 @@ define root view entity ZC_DTE_MONITOR
       @UI.fieldGroup: [{ qualifier: 'DocSapFacet', position: 70 }]
       FolioReferencia,
 
-  //===========================================================================
-  // LOG Y XML (solo en detalle)
-  //===========================================================================
       @UI.fieldGroup: [{ qualifier: 'LogFacet', position: 10 }]
       LogProcesamiento,
 
-      XmlData, // Disponible para generación de PDF en el controlador
+      XmlData,
 
-  //===========================================================================
-  // AUDITORÍA
-  //===========================================================================
       @UI.fieldGroup: [{ qualifier: 'AuditFacet', position: 10 }]
       FechaCreacion,
       HoraCreacion,
@@ -175,19 +136,12 @@ define root view entity ZC_DTE_MONITOR
       @UI.fieldGroup: [{ qualifier: 'AuditFacet', position: 40 }]
       UsuarioModificacion,
 
-  //===========================================================================
-  // ACCIONES (se declaran aquí para exposición en OData)
-  //===========================================================================
       @UI.lineItem: [
-        { type: #FOR_ACTION, dataAction: 'Reprocesar',           label: 'Reprocesar',            position: 10 },
-        { type: #FOR_ACTION, dataAction: 'Rechazar',             label: 'Rechazar',               position: 20 },
-        { type: #FOR_ACTION, dataAction: 'IndicarDocReferencia', label: 'Indicar Doc. Ref.',      position: 30 },
-        { type: #FOR_ACTION, dataAction: 'IndicarPosiciones',    label: 'Indicar Posiciones',     position: 40 }
+        { type: #FOR_ACTION, dataAction: 'Reprocesar',           label: 'Reprocesar',       position: 10 },
+        { type: #FOR_ACTION, dataAction: 'Rechazar',             label: 'Rechazar',          position: 20 },
+        { type: #FOR_ACTION, dataAction: 'IndicarDocReferencia', label: 'Indicar Doc. Ref.', position: 30 },
+        { type: #FOR_ACTION, dataAction: 'IndicarPosiciones',    label: 'Indicar Posiciones',position: 40 }
       ]
 
-  //===========================================================================
-  // ASOCIACIONES
-  //===========================================================================
-      _Historial: redirected to composition child ZC_DTE_MONITOR_H,
-      _BP
+      _Historial: redirected to composition child ZC_DTE_MONITOR_H
 }

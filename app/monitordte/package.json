@@ -1,0 +1,15 @@
+{
+  "name": "com.fenixgold.dte.monitordte",
+  "version": "1.0.0",
+  "description": "Monitor DTE Proveedor",
+  "private": true,
+  "scripts": {
+    "start": "fiori run --open index.html",
+    "build": "ui5 build --clean-dest",
+    "lint": "eslint webapp"
+  },
+  "devDependencies": {
+    "@sap/ux-ui5-tooling": "^1",
+    "@ui5/cli": "^3"
+  }
+}

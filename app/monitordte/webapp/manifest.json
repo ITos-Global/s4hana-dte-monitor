@@ -1,0 +1,103 @@
+{
+  "_version": "1.65.0",
+  "sap.app": {
+    "id": "com.fenixgold.dte.monitordte",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": { "version": "1.0.0" },
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "resources": "resources.json",
+    "dataSources": {
+      "mainService": {
+        "uri": "/odata/v4/ZUI_DTE_MONITOR_O4/",
+        "type": "OData",
+        "settings": {
+          "odataVersion": "4.0",
+          "localUri": "localService/metadata.xml"
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "icons": {
+      "icon": "sap-icon://document"
+    },
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": false,
+      "phone": false
+    }
+  },
+  "sap.ui5": {
+    "flexEnabled": true,
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {},
+        "sap.ui.table": {},
+        "sap.ui.comp": {},
+        "sap.ui.export": {},
+        "sap.ui.layout": {},
+        "sap.f": {},
+        "sap.ui.unified": {}
+      }
+    },
+    "contentDensities": {
+      "compact": true,
+      "cozy": false
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "com.fenixgold.dte.monitordte.i18n.i18n"
+        }
+      },
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {
+          "synchronizationMode": "None",
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      }
+    },
+    "routing": {
+      "config": {
+        "routerClass": "sap.ui.core.routing.Router",
+        "type": "JSON",
+        "viewType": "XML",
+        "path": "com.fenixgold.dte.monitordte.view",
+        "controlId": "app",
+        "controlAggregation": "pages",
+        "async": true
+      },
+      "routes": [
+        {
+          "name": "main",
+          "pattern": "",
+          "target": "main"
+        }
+      ],
+      "targets": {
+        "main": {
+          "type": "View",
+          "id": "main",
+          "name": "Main",
+          "level": 1
+        }
+      }
+    },
+    "rootView": {
+      "viewName": "com.fenixgold.dte.monitordte.view.App",
+      "type": "XML",
+      "async": true,
+      "id": "app"
+    }
+  }
+}

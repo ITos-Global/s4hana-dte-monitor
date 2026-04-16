@@ -1,0 +1,30 @@
+specVersion: "3.0"
+metadata:
+  name: com.fenixgold.dte.monitordte
+type: application
+framework:
+  name: SAPUI5
+  version: "1.120.0"
+  libraries:
+    - name: sap.m
+    - name: sap.ui.core
+    - name: sap.ui.table
+    - name: sap.ui.comp
+    - name: sap.ui.export
+    - name: sap.ui.layout
+    - name: sap.f
+    - name: sap.ui.unified
+    - name: themelib_sap_horizon
+      optional: true
+server:
+  customMiddleware:
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        ignoreCertError: false
+        backend:
+          - path: /odata/v4/ZUI_DTE_MONITOR_O4
+            url: https://<tenant>.s4hana.ondemand.com
+            destination: S4HANA_MONITOR_DEST
+            scp: true
+            pathPrefix: /sap/opu/odata4/sap/zui_dte_monitor_o4/srvd/sap/zui_dte_monitor/0001

@@ -1,0 +1,95 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:l="sap.ui.layout"
+    xmlns:f="sap.ui.layout.form">
+
+    <Dialog
+        id="docRefDialog"
+        title="{i18n>docRefDialogTitle}"
+        contentWidth="480px"
+        draggable="true"
+        resizable="true"
+        afterClose=".onDocRefDialogClose">
+
+        <content>
+            <MessageStrip
+                id="docRefMsg"
+                text="{i18n>docRefDialogInfo}"
+                type="Information"
+                showIcon="true"
+                class="sapUiSmallMargin"/>
+
+            <f:SimpleForm
+                id="docRefForm"
+                layout="ColumnLayout"
+                editable="true"
+                columnContainerWidth="100%">
+
+                <f:content>
+                    <!-- Orden de Compra -->
+                    <Label text="{i18n>labelOC}" required="false"/>
+                    <Input
+                        id="inputOC"
+                        value="{docRefModel>/OrdenCompra}"
+                        maxLength="10"
+                        placeholder="{i18n>placeholderOC}"
+                        liveChange=".onDocRefFieldChange"/>
+
+                    <!-- HES -->
+                    <Label text="{i18n>labelHES}"/>
+                    <Input
+                        id="inputHES"
+                        value="{docRefModel>/HojaEntradaServicio}"
+                        maxLength="10"
+                        placeholder="{i18n>placeholderHES}"
+                        liveChange=".onDocRefFieldChange"/>
+
+                    <!-- Entrada de Mercancías -->
+                    <Label text="{i18n>labelEM}"/>
+                    <HBox>
+                        <Input
+                            id="inputEM"
+                            value="{docRefModel>/EntradaMercancia}"
+                            maxLength="10"
+                            placeholder="{i18n>placeholderEM}"
+                            width="60%"
+                            liveChange=".onDocRefFieldChange"/>
+                        <Label text="{i18n>labelAnio}" class="sapUiSmallMarginBegin"/>
+                        <Input
+                            id="inputAnioEM"
+                            value="{docRefModel>/AnioEntradaMercancia}"
+                            maxLength="4"
+                            placeholder="AAAA"
+                            width="35%"
+                            class="sapUiSmallMarginBegin"/>
+                    </HBox>
+
+                    <!-- Folio Factura Referencia (para NC/ND) -->
+                    <Label text="{i18n>labelFolioRef}"/>
+                    <Input
+                        id="inputFolioRef"
+                        value="{docRefModel>/FolioReferencia}"
+                        maxLength="20"
+                        placeholder="{i18n>placeholderFolioRef}"/>
+
+                </f:content>
+            </f:SimpleForm>
+        </content>
+
+        <buttons>
+            <Button
+                id="btnDocRefConfirm"
+                text="{i18n>btnContinuar}"
+                type="Emphasized"
+                enabled="{docRefModel>/isValid}"
+                press=".onConfirmDocRef"/>
+            <Button
+                id="btnDocRefCancel"
+                text="{i18n>btnCancelar}"
+                press=".onCancelDocRef"/>
+        </buttons>
+
+    </Dialog>
+
+</core:FragmentDefinition>

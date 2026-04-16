@@ -1,0 +1,24 @@
+# Node modules
+node_modules/
+dist/
+.build/
+
+# MTA build artifacts
+mta_archives/
+*.mtar
+
+# SAP tooling
+.fioritools/
+.yo-rc.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+
+# Spec source (archivo Word desempaquetado - no necesario en el repo)
+spec_unpacked/
+
+# Claude Code
+.claude/

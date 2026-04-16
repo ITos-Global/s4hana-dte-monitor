@@ -1,0 +1,5 @@
+@EndUserText.label: 'Monitor DTE Proveedor - Service Definition'
+define service ZUI_DTE_MONITOR {
+  expose ZC_DTE_MONITOR  as DteMonitor;
+  expose ZC_DTE_MONITOR_H as DteHistorial;
+}

@@ -1,0 +1,12 @@
+{
+  "name": "dte-monitor",
+  "version": "1.0.0",
+  "description": "Monitor DTE Proveedor - Fenix Gold / Lince SA",
+  "private": true,
+  "scripts": {
+    "build": "mbt build"
+  },
+  "devDependencies": {
+    "mbt": "^1.2.0"
+  }
+}

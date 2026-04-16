@@ -1,0 +1,124 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:t="sap.ui.table">
+
+    <Dialog
+        id="posicionesDialog"
+        title="{i18n>posDialogTitle}"
+        contentWidth="800px"
+        contentHeight="400px"
+        draggable="true"
+        resizable="true"
+        afterClose=".onPosDialogClose">
+
+        <content>
+            <MessageStrip
+                id="posMsg"
+                text="{i18n>posDialogInfo}"
+                type="Information"
+                showIcon="true"
+                class="sapUiSmallMargin"/>
+
+            <!-- Tabla de posiciones de la OC/EM -->
+            <t:Table
+                id="posTable"
+                rows="{posicionesModel>/posiciones}"
+                visibleRowCount="8"
+                selectionMode="None"
+                alternateRowColors="true"
+                enableColumnReordering="false"
+                class="sapUiSmallMarginBottom">
+
+                <t:columns>
+                    <t:Column width="5rem" autoResizable="true">
+                        <Label text="{i18n>colPosicion}"/>
+                        <t:template>
+                            <Text text="{posicionesModel>Posicion}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="12rem" autoResizable="true">
+                        <Label text="{i18n>colMaterial}"/>
+                        <t:template>
+                            <Text text="{posicionesModel>Material}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="8rem" autoResizable="true">
+                        <Label text="{i18n>colDescripcion}"/>
+                        <t:template>
+                            <Text text="{posicionesModel>Descripcion}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="8rem" hAlign="End" autoResizable="true">
+                        <Label text="{i18n>colCantOC}"/>
+                        <t:template>
+                            <Text text="{posicionesModel>CantidadOc}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="8rem" hAlign="End" autoResizable="true">
+                        <Label text="{i18n>colCantRecibida}"/>
+                        <t:template>
+                            <Text text="{posicionesModel>CantidadRecibida}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="10rem" hAlign="End" autoResizable="true">
+                        <Label text="{i18n>colCantFacturar}"/>
+                        <t:template>
+                            <!-- StepInput editable para que el usuario ajuste la cantidad -->
+                            <StepInput
+                                value="{posicionesModel>CantidadFacturar}"
+                                min="0"
+                                max="{posicionesModel>CantidadRecibida}"
+                                step="1"
+                                displayValuePrecision="3"
+                                change=".onCantidadChange"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="6rem" autoResizable="true">
+                        <Label text="{i18n>colUnidad}"/>
+                        <t:template>
+                            <Text text="{posicionesModel>UnidadMedida}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="10rem" hAlign="End" autoResizable="true">
+                        <Label text="{i18n>colMontoPos}"/>
+                        <t:template>
+                            <Text text="{
+                                parts: ['posicionesModel>MontoPos', 'posicionesModel>Moneda'],
+                                formatter: '.formatter.formatCurrency'
+                            }"/>
+                        </t:template>
+                    </t:Column>
+                </t:columns>
+
+            </t:Table>
+
+            <!-- Resumen monto total seleccionado -->
+            <HBox justifyContent="End" class="sapUiSmallMarginEnd">
+                <VBox>
+                    <Label text="{i18n>labelTotalFacturar}"/>
+                    <ObjectNumber
+                        id="totalFacturar"
+                        number="{posicionesModel>/totalFacturar}"
+                        unit="{posicionesModel>/monedaOC}"
+                        emphasized="true"
+                        state="Information"/>
+                </VBox>
+            </HBox>
+        </content>
+
+        <buttons>
+            <Button
+                id="btnPosConfirm"
+                text="{i18n>btnConfirmar}"
+                type="Emphasized"
+                press=".onConfirmPosiciones"/>
+            <Button
+                id="btnPosCancel"
+                text="{i18n>btnCancelar}"
+                press=".onCancelPosiciones"/>
+        </buttons>
+
+    </Dialog>
+
+</core:FragmentDefinition>

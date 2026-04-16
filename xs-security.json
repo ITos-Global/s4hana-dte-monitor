@@ -1,0 +1,54 @@
+{
+  "xsappname": "dte-monitor",
+  "tenant-mode": "dedicated",
+  "description": "Monitor DTE Proveedor - Seguridad XSUAA",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Display",
+      "description": "Ver monitor DTE (solo lectura)"
+    },
+    {
+      "name": "$XSAPPNAME.Process",
+      "description": "Reprocesar y rechazar DTEs"
+    },
+    {
+      "name": "$XSAPPNAME.Admin",
+      "description": "Administración completa del monitor DTE"
+    }
+  ],
+  "attributes": [],
+  "role-templates": [
+    {
+      "name": "DteMonitorViewer",
+      "description": "Visualización del monitor DTE",
+      "scope-references": [
+        "$XSAPPNAME.Display"
+      ]
+    },
+    {
+      "name": "DteMonitorProcessor",
+      "description": "Procesar, reprocesar y rechazar DTEs",
+      "scope-references": [
+        "$XSAPPNAME.Display",
+        "$XSAPPNAME.Process"
+      ]
+    },
+    {
+      "name": "DteMonitorAdmin",
+      "description": "Administración completa del monitor DTE",
+      "scope-references": [
+        "$XSAPPNAME.Display",
+        "$XSAPPNAME.Process",
+        "$XSAPPNAME.Admin"
+      ]
+    }
+  ],
+  "oauth2-configuration": {
+    "token-validity": 900,
+    "redirect-uris": [
+      "https://*.hana.ondemand.com/**",
+      "https://*.applicationstudio.cloud.sap/**",
+      "http://localhost:*/**"
+    ]
+  }
+}

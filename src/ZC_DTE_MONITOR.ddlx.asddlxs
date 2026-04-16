@@ -1,0 +1,62 @@
+@Metadata.layer: #CORE
+annotate entity ZC_DTE_MONITOR with
+{
+  @UI.facet: [
+    {
+      id:       'GeneralData',
+      purpose:  #STANDARD,
+      type:     #FIELDGROUP_REFERENCE,
+      label:    'Datos Generales',
+      position: 10,
+      targetQualifier: 'GeneralData'
+    },
+    {
+      id:       'MontosFacet',
+      purpose:  #STANDARD,
+      type:     #FIELDGROUP_REFERENCE,
+      label:    'Montos',
+      position: 20,
+      targetQualifier: 'MontosFacet'
+    },
+    {
+      id:       'FechasFacet',
+      purpose:  #STANDARD,
+      type:     #FIELDGROUP_REFERENCE,
+      label:    'Fechas',
+      position: 30,
+      targetQualifier: 'FechasFacet'
+    },
+    {
+      id:       'DocSapFacet',
+      purpose:  #STANDARD,
+      type:     #FIELDGROUP_REFERENCE,
+      label:    'Documentos SAP',
+      position: 40,
+      targetQualifier: 'DocSapFacet'
+    },
+    {
+      id:       'LogFacet',
+      purpose:  #STANDARD,
+      type:     #FIELDGROUP_REFERENCE,
+      label:    'Log Procesamiento',
+      position: 50,
+      targetQualifier: 'LogFacet'
+    },
+    {
+      id:            'HistorialFacet',
+      purpose:       #STANDARD,
+      type:          #LINEITEM_REFERENCE,
+      label:         'Historial / Tracking',
+      position:      60,
+      targetElement: '_Historial'
+    },
+    {
+      id:       'AuditFacet',
+      purpose:  #STANDARD,
+      type:     #FIELDGROUP_REFERENCE,
+      label:    'Auditoría',
+      position: 70,
+      targetQualifier: 'AuditFacet'
+    }
+  ]
+}

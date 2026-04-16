@@ -1,0 +1,111 @@
+managed implementation in class ZBP_I_DTE_MONITOR unique;
+strict ( 2 );
+
+define behavior for ZI_DTE_MONITOR alias DteMonitor
+  persistent table zdte_monitor
+  lock master
+  authorization master ( instance )
+  etag master FechaModificacion
+{
+  // ---------------------------------------------------------------
+  // CRUD: solo update (el bot crea/borra registros directamente)
+  // ---------------------------------------------------------------
+  update;
+
+  // ---------------------------------------------------------------
+  // ACCIONES PERSONALIZADAS
+  // ---------------------------------------------------------------
+
+  // Reprocesar: relanza validaciones y contabilización
+  // Puede ejecutarse sobre múltiples registros seleccionados
+  // Habilitado solo si Estado <> '02' (Aprobado) y <> '06' (Contabilizado)
+  action ( features : instance ) Reprocesar
+    result [1] $self;
+
+  // Rechazar: rechazo manual con motivo obligatorio
+  // Habilitado solo si Estado <> '02' y <> '06'
+  action ( features : instance ) Rechazar
+    parameter ZS_DTE_RECHAZO
+    result [1] $self;
+
+  // Indicar Documento de Referencia (OC / HES / EM)
+  // Para DTE en estado 04 (Por rechazar) que carecen de referencia
+  action ( features : instance ) IndicarDocReferencia
+    parameter ZS_DTE_DOC_REF
+    result [1] $self;
+
+  // Indicar Posiciones de OC/EM para DTE parciales
+  // Recibe [1..*] posiciones que el usuario confirmó para facturar
+  // Habilitado solo en estado 04
+  action ( features : instance ) IndicarPosiciones
+    parameter ZS_DTE_POSICION
+    result [1] $self;
+
+  // ---------------------------------------------------------------
+  // DETERMINACIONES (se ejecutan on modify / on save)
+  // ---------------------------------------------------------------
+
+  // Recalcula DiasPendientes al cambiar Estado o FechaRecepcionSii
+  determination SetDiasPendientes on modify
+    { field Estado, FechaRecepcionSii; }
+
+  // Inserta registro en la tabla de historial al persistir un cambio de estado
+  determination CrearHistorial on save
+    { field Estado; }
+
+  // ---------------------------------------------------------------
+  // VALIDACIONES (ejecutadas antes del save)
+  // ---------------------------------------------------------------
+
+  // Verifica que OC / HES / EM existan y estén vigentes en SAP
+  validation ValidateDocReferencia on save
+    { field OrdenCompra, HojaEntradaServicio, EntradaMercancia; }
+
+  // ---------------------------------------------------------------
+  // COMPOSICIÓN CON HISTORIAL
+  // ---------------------------------------------------------------
+  association _Historial { create; }
+
+  // ---------------------------------------------------------------
+  // FEATURE CONTROL
+  // Campos de solo lectura siempre
+  // ---------------------------------------------------------------
+  field ( readonly )
+    TipoDte, Folio, Proveedor,
+    Criticality,
+    DiasPendientes,
+    DocumentoFacturaSap, AnioFacturaSap,
+    FechaCreacion, HoraCreacion, UsuarioCreacion,
+    FechaModificacion, UsuarioModificacion,
+    LogProcesamiento,
+    XmlData;
+
+  // Campos de documento de referencia: editables solo en estado 04
+  field ( features : instance )
+    OrdenCompra,
+    HojaEntradaServicio,
+    EntradaMercancia,
+    AnioEntradaMercancia,
+    FolioReferencia;
+
+  // ---------------------------------------------------------------
+  // MAPPING
+  // ---------------------------------------------------------------
+  mapping for zdte_monitor corresponding
+    including last changed;
+}
+
+// ---------------------------------------------------------------
+// BEHAVIOR HISTORIAL (entidad hijo)
+// ---------------------------------------------------------------
+define behavior for ZI_DTE_MONITOR_H alias DteHistorial
+  persistent table zdte_monitor_h
+  lock dependent by _DteMonitor
+  authorization dependent by _DteMonitor
+{
+  field ( readonly )
+    TipoDte, Folio, Proveedor, SeqNo,
+    Timestamp, EstadoAnterior, EstadoNuevo, Usuario, Descripcion;
+
+  mapping for zdte_monitor_h corresponding;
+}

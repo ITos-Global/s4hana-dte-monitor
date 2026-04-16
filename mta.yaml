@@ -1,0 +1,109 @@
+_schema-version: "3.2"
+ID: dte-monitor
+version: 1.0.0
+description: Monitor DTE Proveedor - Fenix Gold / Lince SA
+parameters:
+  enable-parallel-deployments: true
+
+# ==============================================================================
+# MODULES
+# ==============================================================================
+modules:
+
+  # ----------------------------------------------------------------------------
+  # SAPUI5 Application (HTML5 module)
+  # ----------------------------------------------------------------------------
+  - name: dte-monitor-app
+    type: html5
+    path: app/monitordte
+    build-parameters:
+      builder: custom
+      commands:
+        - npm ci
+        - npm run build
+      supported-platforms: []
+    requires:
+      - name: dte-monitor-html5-repo-host
+
+  # ----------------------------------------------------------------------------
+  # Destination Content (configura destino hacia S/4HANA en BTP)
+  # ----------------------------------------------------------------------------
+  - name: dte-monitor-destination-content
+    type: com.sap.application.content
+    requires:
+      - name: dte-monitor-destination-service
+        parameters:
+          content-target: true
+      - name: dte-monitor-html5-repo-host
+        parameters:
+          service-key:
+            name: dte-monitor-html5-key
+      - name: dte-monitor-xsuaa
+        parameters:
+          service-key:
+            name: dte-monitor-xsuaa-key
+    parameters:
+      content:
+        instance:
+          destinations:
+            - Name: dte-monitor-html5-repo
+              ServiceInstanceName: dte-monitor-html5-repo-host
+              ServiceKeyName: dte-monitor-html5-key
+              app-guid: "${app-guid}"
+              forwardAuthToken: true
+          existing_destinations_policy: update
+    build-parameters:
+      no-source: true
+
+# ==============================================================================
+# RESOURCES (BTP services)
+# ==============================================================================
+resources:
+
+  # HTML5 Application Repository — host (almacena la app)
+  - name: dte-monitor-html5-repo-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host
+
+  # HTML5 Application Repository — runtime (sirve la app al browser)
+  - name: dte-monitor-html5-repo-runtime
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-runtime
+
+  # XSUAA — autenticación OAuth2 / SAML
+  - name: dte-monitor-xsuaa
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: xs-security.json
+      config:
+        xsappname: dte-monitor
+        tenant-mode: dedicated
+
+  # Destination Service — conectividad hacia S/4HANA Public Edition
+  - name: dte-monitor-destination-service
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+      config:
+        HTML5Runtime_enabled: true
+        init_data:
+          instance:
+            existing_destinations_policy: update
+            destinations:
+              - Name: S4HANA_MONITOR_DEST
+                Description: S/4HANA Public Edition - Monitor DTE
+                Type: HTTP
+                Authentication: SAMLAssertion
+                ProxyType: Internet
+                # URL: reemplazar con el URL real del tenant S/4HANA
+                URL: https://<tenant>.s4hana.ondemand.com
+                nameIdFormat: urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+                HTML5.DynamicDestination: true
+                WebIDEUsage: odata_gen,odata_abap,dev_abap

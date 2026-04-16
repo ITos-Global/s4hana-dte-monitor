@@ -1,0 +1,24 @@
+specVersion: "3.0"
+metadata:
+  name: com.fenixgold.dte.monitordte
+type: application
+framework:
+  name: SAPUI5
+  version: "1.120.0"
+builder:
+  resources:
+    excludes:
+      - "/test/**"
+      - "/localService/**"
+  customTasks:
+    - name: deploy-to-abap
+      afterTask: generateCachebusterInfo
+      configuration:
+        target:
+          url: https://<tenant>.s4hana.ondemand.com
+          client: "100"
+          auth: basic
+        app:
+          name: ZDTE_MONITOR_UI
+          package: ZDTE_MONITOR
+          transport: <TR_NUMBER>

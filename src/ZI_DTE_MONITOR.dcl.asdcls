@@ -1,0 +1,6 @@
+@EndUserText.label: 'Control de Acceso Monitor DTE'
+@MappingRole: true
+define role ZI_DTE_MONITOR {
+  grant select on ZI_DTE_MONITOR
+    where (Sociedad) = aspect pfcg_auth( F_BKPF_BUK, BUKRS, ACTVT = '03' );
+}

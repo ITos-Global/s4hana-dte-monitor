@@ -22,21 +22,21 @@ define table zdte_monitor {
 
   estado        : abap.char( 2 );
 
-  waers         : waers;
+  waers         : abap.cuky;
 
-  @Semantics.amount.currencyCode : 'waers'
+  @Semantics.amount.currencyCode : 'zdte_monitor.waers'
   monto_n       : abap.curr( 15, 2 );
-  @Semantics.amount.currencyCode : 'waers'
+  @Semantics.amount.currencyCode : 'zdte_monitor.waers'
   monto_ex      : abap.curr( 15, 2 );
-  @Semantics.amount.currencyCode : 'waers'
+  @Semantics.amount.currencyCode : 'zdte_monitor.waers'
   iec           : abap.curr( 15, 2 );
-  @Semantics.amount.currencyCode : 'waers'
+  @Semantics.amount.currencyCode : 'zdte_monitor.waers'
   iva_rec       : abap.curr( 15, 2 );
-  @Semantics.amount.currencyCode : 'waers'
+  @Semantics.amount.currencyCode : 'zdte_monitor.waers'
   iva_nrec      : abap.curr( 15, 2 );
-  @Semantics.amount.currencyCode : 'waers'
+  @Semantics.amount.currencyCode : 'zdte_monitor.waers'
   iva_ret       : abap.curr( 15, 2 );
-  @Semantics.amount.currencyCode : 'waers'
+  @Semantics.amount.currencyCode : 'zdte_monitor.waers'
   total_doc     : abap.curr( 15, 2 );
 
   doc_fact      : belnr_d;
@@ -58,7 +58,7 @@ define table zdte_monitor {
 
   @Semantics.systemDate.createdAt : true
   erdat         : erdat;
-  erzet         : erzet;
+  erzet         : abap.tims;
   @Semantics.user.createdBy : true
   ernam         : ernam;
   @Semantics.systemDate.lastChangedAt : true

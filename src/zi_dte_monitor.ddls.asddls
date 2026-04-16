@@ -32,7 +32,6 @@ define root view entity ZI_DTE_MONITOR
         else            cast( 0 as abap.int1 )
       end                           as Criticality,
 
-      @Semantics.currencyCode: true
       m.waers                       as Moneda,
       @Semantics.amount.currencyCode: 'Moneda'
       m.monto_n                     as MontoNeto,

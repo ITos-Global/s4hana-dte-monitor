@@ -21,6 +21,20 @@
     <item>/src/zi_dte_monitor.bdef.asbdef</item>
     <item>/src/zi_dte_monitor.dcl.asdcls</item>
     <item>/src/zui_dte_monitor.srvd.assdls</item>
+    <item>/src/zi_dte_monitor.ddls.asddls</item>
+    <item>/src/zi_dte_monitor_h.ddls.asddls</item>
+    <item>/src/zc_dte_monitor.ddls.asddls</item>
+    <item>/src/zc_dte_monitor.ddlx.asddlxs</item>
+    <item>/src/zc_dte_monitor_h.ddls.asddls</item>
+    <item>/src/zs_dte_doc_ref.ddls.asddls</item>
+    <item>/src/zs_dte_posicion.ddls.asddls</item>
+    <item>/src/zs_dte_rechazo.ddls.asddls</item>
+    <item>/src/zbp_i_dte_monitor.clas.abap</item>
+    <item>/src/zbp_i_dte_monitor.clas.xml</item>
+    <item>/src/zbp_i_dte_monitor.clas.locals_def.abap</item>
+    <item>/src/zbp_i_dte_monitor.clas.locals_imp.abap</item>
+    <item>/src/zcl_dte_processor.clas.abap</item>
+    <item>/src/zcl_dte_processor.clas.xml</item>
    </IGNORE>
   </DATA>
  </asx:values>

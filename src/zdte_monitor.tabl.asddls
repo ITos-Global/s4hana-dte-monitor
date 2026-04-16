@@ -56,14 +56,10 @@ define table zdte_monitor {
 
   dias_pend     : abap.int4;
 
-  @Semantics.systemDate.createdAt : true
   erdat         : erdat;
   erzet         : abap.tims;
-  @Semantics.user.createdBy : true
   ernam         : ernam;
-  @Semantics.systemDate.lastChangedAt : true
   aedat         : aedat;
-  @Semantics.user.lastChangedBy : true
   aenam         : aenam;
 
 }

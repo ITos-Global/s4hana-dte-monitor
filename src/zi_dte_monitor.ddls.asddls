@@ -62,14 +62,10 @@ define root view entity ZI_DTE_MONITOR
       m.log_proc                    as LogProcesamiento,
       m.dias_pend                   as DiasPendientes,
 
-      @Semantics.systemDate.createdAt: true
       m.erdat                       as FechaCreacion,
       m.erzet                       as HoraCreacion,
-      @Semantics.user.createdBy: true
       m.ernam                       as UsuarioCreacion,
-      @Semantics.systemDate.lastChangedAt: true
       m.aedat                       as FechaModificacion,
-      @Semantics.user.lastChangedBy: true
       m.aenam                       as UsuarioModificacion,
 
       _Historial

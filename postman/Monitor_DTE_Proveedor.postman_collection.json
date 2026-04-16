@@ -1,0 +1,588 @@
+{
+  "info": {
+    "name": "Monitor DTE Proveedor — S/4HANA OData V4",
+    "_postman_id": "dte-monitor-v1",
+    "description": "Colección para el bot de registro y consulta de DTE.\n\nConfigura las variables de entorno antes de usar:\n- `s4hana_host`: host del tenant S/4HANA\n- `s4hana_user` / `s4hana_pass`: credenciales de servicio\n- `csrf_token`: se obtiene automáticamente con la request 'Fetch CSRF Token'\n\nServicio OData V4: ZUI_DTE_MONITOR_O4",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "s4hana_host",
+      "value": "https://my-tenant.s4hana.ondemand.com",
+      "type": "string"
+    },
+    {
+      "key": "service_root",
+      "value": "/sap/opu/odata4/sap/zui_dte_monitor_o4/srvd/sap/zui_dte_monitor/0001",
+      "type": "string"
+    },
+    {
+      "key": "csrf_token",
+      "value": "fetch",
+      "type": "string"
+    },
+    {
+      "key": "tipo_dte",
+      "value": "033",
+      "type": "string"
+    },
+    {
+      "key": "folio",
+      "value": "123456",
+      "type": "string"
+    },
+    {
+      "key": "proveedor_rut",
+      "value": "76543210-9",
+      "type": "string"
+    },
+    {
+      "key": "sociedad",
+      "value": "1000",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "basic",
+    "basic": [
+      { "key": "username", "value": "{{s4hana_user}}", "type": "string" },
+      { "key": "password", "value": "{{s4hana_pass}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "0 — Setup",
+      "description": "Obtención de CSRF token y metadata del servicio.",
+      "item": [
+        {
+          "name": "Fetch CSRF Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const token = pm.response.headers.get('x-csrf-token');",
+                  "if (token) {",
+                  "    pm.collectionVariables.set('csrf_token', token);",
+                  "    pm.test('CSRF token obtenido: ' + token, () => pm.expect(token).to.not.be.empty);",
+                  "} else {",
+                  "    pm.test('CSRF token NO obtenido', () => pm.expect.fail('Header x-csrf-token ausente'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-csrf-token", "value": "fetch" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": [""]
+            },
+            "description": "Obtiene el CSRF token y lo guarda como variable de colección. Ejecutar antes de cualquier POST/PATCH."
+          }
+        },
+        {
+          "name": "Service Metadata ($metadata)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/xml" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/$metadata",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["$metadata"]
+            },
+            "description": "Retorna el esquema EDMX del servicio OData V4. Útil para verificar tipos de campo y acciones disponibles."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 — Bot Consultas (GET)",
+      "description": "Requests de lectura que el bot usa para consultar el estado del monitor.",
+      "item": [
+        {
+          "name": "Listar todos los DTE",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor?$orderby=FechaRecepcionSii desc&$top=50",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"],
+              "query": [
+                { "key": "$orderby", "value": "FechaRecepcionSii desc" },
+                { "key": "$top",     "value": "50" }
+              ]
+            },
+            "description": "Lista los últimos 50 DTE ordenados por fecha de recepción SII."
+          }
+        },
+        {
+          "name": "DTE Pendientes de procesar (Estado 01 y 05)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor?$filter=(Estado eq '01' or Estado eq '05')&$select=TipoDte,Folio,Proveedor,NombreProveedor,Estado,FechaDocumento,FechaRecepcionSii,TotalDocumento,Moneda,OrdenCompra,DiasPendientes&$orderby=DiasPendientes desc",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"],
+              "query": [
+                { "key": "$filter",  "value": "(Estado eq '01' or Estado eq '05')" },
+                { "key": "$select",  "value": "TipoDte,Folio,Proveedor,NombreProveedor,Estado,FechaDocumento,FechaRecepcionSii,TotalDocumento,Moneda,OrdenCompra,DiasPendientes" },
+                { "key": "$orderby", "value": "DiasPendientes desc" }
+              ]
+            },
+            "description": "Consulta los DTE que el bot debe procesar: Pendientes (01) y No procesados (05). Ordenados por días pendientes descendente para priorizar los más urgentes."
+          }
+        },
+        {
+          "name": "DTE Por rechazar (Estado 04) — requieren intervención",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor?$filter=Estado eq '04'&$select=TipoDte,Folio,Proveedor,NombreProveedor,FechaDocumento,TotalDocumento,Moneda,OrdenCompra,HojaEntradaServicio,EntradaMercancia,LogProcesamiento,DiasPendientes&$orderby=DiasPendientes desc",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"],
+              "query": [
+                { "key": "$filter",  "value": "Estado eq '04'" },
+                { "key": "$select",  "value": "TipoDte,Folio,Proveedor,NombreProveedor,FechaDocumento,TotalDocumento,Moneda,OrdenCompra,HojaEntradaServicio,EntradaMercancia,LogProcesamiento,DiasPendientes" },
+                { "key": "$orderby", "value": "DiasPendientes desc" }
+              ]
+            },
+            "description": "DTE que fallaron validación y esperan que el usuario indique el documento de referencia. El bot puede alertar sobre estos."
+          }
+        },
+        {
+          "name": "DTE con alerta días (≥ 5 días pendientes)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor?$filter=(Estado eq '01' or Estado eq '04' or Estado eq '05') and DiasPendientes ge 5&$select=TipoDte,Folio,Proveedor,NombreProveedor,Estado,TotalDocumento,Moneda,DiasPendientes&$orderby=DiasPendientes desc",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"],
+              "query": [
+                { "key": "$filter",  "value": "(Estado eq '01' or Estado eq '04' or Estado eq '05') and DiasPendientes ge 5" },
+                { "key": "$select",  "value": "TipoDte,Folio,Proveedor,NombreProveedor,Estado,TotalDocumento,Moneda,DiasPendientes" },
+                { "key": "$orderby", "value": "DiasPendientes desc" }
+              ]
+            },
+            "description": "Alerta: DTE que llevan 5+ días sin resolverse. El bot puede enviar notificaciones basadas en este resultado."
+          }
+        },
+        {
+          "name": "Buscar DTE por RUT Proveedor",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor?$filter=Proveedor eq '{{proveedor_rut}}'&$orderby=FechaDocumento desc",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"],
+              "query": [
+                { "key": "$filter",  "value": "Proveedor eq '{{proveedor_rut}}'" },
+                { "key": "$orderby", "value": "FechaDocumento desc" }
+              ]
+            },
+            "description": "Todos los DTE de un proveedor específico (por RUT). Ajustar la variable proveedor_rut."
+          }
+        },
+        {
+          "name": "Buscar DTE por Folio + Tipo + RUT (clave exacta)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')"]
+            },
+            "description": "Obtiene un DTE específico por su clave compuesta (TipoDte + Folio + RUT Proveedor). Usar para verificar si un DTE ya existe antes de crearlo."
+          }
+        },
+        {
+          "name": "DTE con $expand Historial",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')?$expand=_Historial($orderby=Timestamp desc)",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')"],
+              "query": [
+                { "key": "$expand", "value": "_Historial($orderby=Timestamp desc)" }
+              ]
+            },
+            "description": "Obtiene el DTE junto con su historial de cambios de estado."
+          }
+        },
+        {
+          "name": "Conteo de DTE por Estado ($apply groupby)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor?$apply=groupby((Estado),aggregate($count as Count))&$orderby=Estado",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"],
+              "query": [
+                { "key": "$apply",   "value": "groupby((Estado),aggregate($count as Count))" },
+                { "key": "$orderby", "value": "Estado" }
+              ]
+            },
+            "description": "Resumen de cuántos DTE hay en cada estado. Útil para el dashboard del bot."
+          }
+        },
+        {
+          "name": "DTE por Sociedad y rango de fecha",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor?$filter=Sociedad eq '{{sociedad}}' and FechaRecepcionSii ge 2026-04-01 and FechaRecepcionSii le 2026-04-30&$select=TipoDte,Folio,Proveedor,NombreProveedor,Estado,TotalDocumento,Moneda,FechaRecepcionSii&$orderby=FechaRecepcionSii desc",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"],
+              "query": [
+                { "key": "$filter",  "value": "Sociedad eq '{{sociedad}}' and FechaRecepcionSii ge 2026-04-01 and FechaRecepcionSii le 2026-04-30" },
+                { "key": "$select",  "value": "TipoDte,Folio,Proveedor,NombreProveedor,Estado,TotalDocumento,Moneda,FechaRecepcionSii" },
+                { "key": "$orderby", "value": "FechaRecepcionSii desc" }
+              ]
+            },
+            "description": "DTE de una sociedad en un rango de fechas específico."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 — Bot Registro DTE (POST/PATCH)",
+      "description": "El bot crea registros nuevos cuando recibe un XML del SII o casilla de correo.",
+      "item": [
+        {
+          "name": "Crear DTE — Factura Afecta (Tipo 033)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"TipoDte\": \"033\",\n  \"Folio\": \"123456\",\n  \"Proveedor\": \"76543210-9\",\n  \"Sociedad\": \"1000\",\n  \"ProveedorSap\": \"0000012345\",\n  \"NombreProveedor\": \"SERVICIOS MINEROS S.A.\",\n  \"FechaDocumento\": \"2026-04-10\",\n  \"FechaRecepcionSii\": \"2026-04-11\",\n  \"FechaAceptacion\": \"2026-04-11\",\n  \"FechaVencimiento\": \"2026-05-10\",\n  \"Estado\": \"01\",\n  \"MontoNeto\": 1500000,\n  \"MontoExento\": 0,\n  \"Iec\": 0,\n  \"IvaRecuperable\": 285000,\n  \"IvaNoRecuperable\": 0,\n  \"IvaRetenido\": 0,\n  \"TotalDocumento\": 1785000,\n  \"Moneda\": \"CLP\",\n  \"OrdenCompra\": \"4500012345\",\n  \"EntradaMercancia\": \"\",\n  \"AnioEntradaMercancia\": \"\",\n  \"HojaEntradaServicio\": \"\",\n  \"FolioReferencia\": \"\",\n  \"XmlData\": \"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?><DTE><Encabezado><IdDoc><TipoDTE>33</TipoDTE><Folio>123456</Folio><FchEmis>2026-04-10</FchEmis></IdDoc><Emisor><RUTEmisor>76543210-9</RUTEmisor><RznSoc>SERVICIOS MINEROS S.A.</RznSoc></Emisor><Receptor><RUTRecep>12345678-9</RUTRecep><RznSocRecep>FENIX GOLD S.A.</RznSocRecep></Receptor><Totales><MntNeto>1500000</MntNeto><TasaIVA>19</TasaIVA><IVA>285000</IVA><MntTotal>1785000</MntTotal></Totales></Encabezado><Referencia><NroLinRef>1</NroLinRef><TpoDocRef>801</TpoDocRef><FolioRef>4500012345</FolioRef></Referencia></DTE>\",\n  \"LogProcesamiento\": \"\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"]
+            },
+            "description": "El bot crea un DTE de tipo Factura Afecta (033) recién recibido del SII. Estado inicial: 01 (Pendiente). El campo XmlData contiene el XML completo para generación de PDF."
+          }
+        },
+        {
+          "name": "Crear DTE — Factura Exenta (Tipo 034)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"TipoDte\": \"034\",\n  \"Folio\": \"789\",\n  \"Proveedor\": \"88888888-8\",\n  \"Sociedad\": \"1000\",\n  \"ProveedorSap\": \"0000067890\",\n  \"NombreProveedor\": \"EMPRESA AGUA POTABLE LTDA\",\n  \"FechaDocumento\": \"2026-04-01\",\n  \"FechaRecepcionSii\": \"2026-04-03\",\n  \"FechaAceptacion\": \"2026-04-03\",\n  \"FechaVencimiento\": \"2026-05-01\",\n  \"Estado\": \"01\",\n  \"MontoNeto\": 0,\n  \"MontoExento\": 320000,\n  \"Iec\": 0,\n  \"IvaRecuperable\": 0,\n  \"IvaNoRecuperable\": 0,\n  \"IvaRetenido\": 0,\n  \"TotalDocumento\": 320000,\n  \"Moneda\": \"CLP\",\n  \"OrdenCompra\": \"\",\n  \"EntradaMercancia\": \"\",\n  \"AnioEntradaMercancia\": \"\",\n  \"HojaEntradaServicio\": \"\",\n  \"FolioReferencia\": \"\",\n  \"XmlData\": \"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?><DTE><Encabezado><IdDoc><TipoDTE>34</TipoDTE><Folio>789</Folio><FchEmis>2026-04-01</FchEmis></IdDoc><Emisor><RUTEmisor>88888888-8</RUTEmisor><RznSoc>EMPRESA AGUA POTABLE LTDA</RznSoc></Emisor><Receptor><RUTRecep>12345678-9</RUTRecep></Receptor><Totales><MntExe>320000</MntExe><MntTotal>320000</MntTotal></Totales></Encabezado></DTE>\",\n  \"LogProcesamiento\": \"\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"]
+            },
+            "description": "Factura Exenta (034) — proveedor de servicios generales sin OC (agua, luz, etc.). MontoExento = total, IVA = 0."
+          }
+        },
+        {
+          "name": "Crear DTE — Nota de Crédito (Tipo 056)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"TipoDte\": \"056\",\n  \"Folio\": \"55\",\n  \"Proveedor\": \"76543210-9\",\n  \"Sociedad\": \"1000\",\n  \"ProveedorSap\": \"0000012345\",\n  \"NombreProveedor\": \"SERVICIOS MINEROS S.A.\",\n  \"FechaDocumento\": \"2026-04-12\",\n  \"FechaRecepcionSii\": \"2026-04-12\",\n  \"FechaAceptacion\": \"2026-04-12\",\n  \"FechaVencimiento\": \"\",\n  \"Estado\": \"01\",\n  \"MontoNeto\": -100000,\n  \"MontoExento\": 0,\n  \"Iec\": 0,\n  \"IvaRecuperable\": -19000,\n  \"IvaNoRecuperable\": 0,\n  \"IvaRetenido\": 0,\n  \"TotalDocumento\": -119000,\n  \"Moneda\": \"CLP\",\n  \"OrdenCompra\": \"4500012345\",\n  \"FolioReferencia\": \"123456\",\n  \"EntradaMercancia\": \"\",\n  \"AnioEntradaMercancia\": \"\",\n  \"HojaEntradaServicio\": \"\",\n  \"XmlData\": \"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?><DTE><Encabezado><IdDoc><TipoDTE>56</TipoDTE><Folio>55</Folio><FchEmis>2026-04-12</FchEmis></IdDoc><Emisor><RUTEmisor>76543210-9</RUTEmisor><RznSoc>SERVICIOS MINEROS S.A.</RznSoc></Emisor><Receptor><RUTRecep>12345678-9</RUTRecep></Receptor><Totales><MntNeto>-100000</MntNeto><TasaIVA>19</TasaIVA><IVA>-19000</IVA><MntTotal>-119000</MntTotal></Totales></Encabezado><Referencia><NroLinRef>1</NroLinRef><TpoDocRef>33</TpoDocRef><FolioRef>123456</FolioRef><RazonRef>Descuento acordado</RazonRef></Referencia></DTE>\",\n  \"LogProcesamiento\": \"\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"]
+            },
+            "description": "Nota de Crédito (056). Referencia a la factura original via FolioReferencia. Montos negativos."
+          }
+        },
+        {
+          "name": "Crear DTE — Nota de Débito (Tipo 055)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"TipoDte\": \"055\",\n  \"Folio\": \"12\",\n  \"Proveedor\": \"76543210-9\",\n  \"Sociedad\": \"1000\",\n  \"ProveedorSap\": \"0000012345\",\n  \"NombreProveedor\": \"SERVICIOS MINEROS S.A.\",\n  \"FechaDocumento\": \"2026-04-14\",\n  \"FechaRecepcionSii\": \"2026-04-14\",\n  \"FechaAceptacion\": \"2026-04-14\",\n  \"FechaVencimiento\": \"2026-05-14\",\n  \"Estado\": \"01\",\n  \"MontoNeto\": 50000,\n  \"MontoExento\": 0,\n  \"Iec\": 0,\n  \"IvaRecuperable\": 9500,\n  \"IvaNoRecuperable\": 0,\n  \"IvaRetenido\": 0,\n  \"TotalDocumento\": 59500,\n  \"Moneda\": \"CLP\",\n  \"OrdenCompra\": \"4500012345\",\n  \"FolioReferencia\": \"123456\",\n  \"EntradaMercancia\": \"\",\n  \"AnioEntradaMercancia\": \"\",\n  \"HojaEntradaServicio\": \"\",\n  \"XmlData\": \"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?><DTE><Encabezado><IdDoc><TipoDTE>55</TipoDTE><Folio>12</Folio><FchEmis>2026-04-14</FchEmis></IdDoc><Emisor><RUTEmisor>76543210-9</RUTEmisor><RznSoc>SERVICIOS MINEROS S.A.</RznSoc></Emisor><Receptor><RUTRecep>12345678-9</RUTRecep></Receptor><Totales><MntNeto>50000</MntNeto><TasaIVA>19</TasaIVA><IVA>9500</IVA><MntTotal>59500</MntTotal></Totales></Encabezado><Referencia><NroLinRef>1</NroLinRef><TpoDocRef>33</TpoDocRef><FolioRef>123456</FolioRef><RazonRef>Diferencia de precio</RazonRef></Referencia></DTE>\",\n  \"LogProcesamiento\": \"\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"]
+            },
+            "description": "Nota de Débito (055). Ajuste adicional sobre factura ya contabilizada."
+          }
+        },
+        {
+          "name": "Crear DTE — Factura de Compra (Tipo 046)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"TipoDte\": \"046\",\n  \"Folio\": \"3301\",\n  \"Proveedor\": \"11111111-1\",\n  \"Sociedad\": \"1000\",\n  \"ProveedorSap\": \"0000099001\",\n  \"NombreProveedor\": \"AGRICOLA EL CAMPO S.A.\",\n  \"FechaDocumento\": \"2026-04-08\",\n  \"FechaRecepcionSii\": \"2026-04-09\",\n  \"FechaAceptacion\": \"2026-04-09\",\n  \"FechaVencimiento\": \"2026-05-08\",\n  \"Estado\": \"01\",\n  \"MontoNeto\": 800000,\n  \"MontoExento\": 0,\n  \"Iec\": 0,\n  \"IvaRecuperable\": 0,\n  \"IvaNoRecuperable\": 0,\n  \"IvaRetenido\": 152000,\n  \"TotalDocumento\": 800000,\n  \"Moneda\": \"CLP\",\n  \"OrdenCompra\": \"4500098765\",\n  \"EntradaMercancia\": \"\",\n  \"AnioEntradaMercancia\": \"\",\n  \"HojaEntradaServicio\": \"\",\n  \"FolioReferencia\": \"\",\n  \"XmlData\": \"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?><DTE><Encabezado><IdDoc><TipoDTE>46</TipoDTE><Folio>3301</Folio></IdDoc><Emisor><RUTEmisor>11111111-1</RUTEmisor></Emisor><Totales><MntNeto>800000</MntNeto><IVARetTotal>152000</IVARetTotal><MntTotal>800000</MntTotal></Totales></Encabezado></DTE>\",\n  \"LogProcesamiento\": \"\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor"]
+            },
+            "description": "Factura de Compra (046) — IVA retenido por el receptor. El comprador retiene el IVA y lo declara."
+          }
+        },
+        {
+          "name": "Actualizar Log de procesamiento (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" },
+              { "key": "If-Match",      "value": "*" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"LogProcesamiento\": \"[2026-04-16 10:30:00] Bot: XML recibido OK. Proveedor validado en SAP. OC 4500012345 encontrada. Monto OC: 1.800.000 CLP. Diferencia: 15.000 CLP (0,84% — dentro de tolerancia 5%). Enviando a contabilización...\",\n  \"Estado\": \"01\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')"]
+            },
+            "description": "El bot actualiza el campo LogProcesamiento con el resultado de sus validaciones. Usar If-Match: * para omitir ETag (o usar el ETag real de la respuesta GET prevía)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 — Acciones RAP (POST actions)",
+      "description": "Bound actions definidas en el Behavior Definition. Pueden ser llamadas por el bot o por el usuario desde la UI.",
+      "item": [
+        {
+          "name": "Reprocesar DTE",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')/ZUI_DTE_MONITOR.Reprocesar",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')", "ZUI_DTE_MONITOR.Reprocesar"]
+            },
+            "description": "Relanza el flujo completo de validación y contabilización sobre el DTE. El namespace de la acción (ZUI_DTE_MONITOR) puede variar — verificar en $metadata."
+          }
+        },
+        {
+          "name": "Rechazar DTE (con motivo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Motivo\": \"DTE rechazado por discrepancia de monto superior a tolerancia. Monto DTE: 1.785.000 CLP, Monto OC: 1.500.000 CLP, diferencia 19% supera límite del 5%.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')/ZUI_DTE_MONITOR.Rechazar",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')", "ZUI_DTE_MONITOR.Rechazar"]
+            },
+            "description": "Rechaza el DTE con motivo obligatorio. Cambia estado a 03 (Rechazado) y registra en historial."
+          }
+        },
+        {
+          "name": "Indicar Documento de Referencia (OC / HES / EM)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"OrdenCompra\": \"4500012345\",\n  \"HojaEntradaServicio\": \"\",\n  \"EntradaMercancia\": \"5000098765\",\n  \"AnioEntradaMercancia\": \"2026\",\n  \"FolioReferencia\": \"\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')/ZUI_DTE_MONITOR.IndicarDocReferencia",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')", "ZUI_DTE_MONITOR.IndicarDocReferencia"]
+            },
+            "description": "Asigna el documento de referencia (OC + EM o HES) a un DTE en estado 04 (Por rechazar) y dispara reproceso automático. Enviar solo los campos aplicables — dejar vacíos los que no correspondan."
+          }
+        },
+        {
+          "name": "Indicar Referencia — Solo HES (servicios)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"OrdenCompra\": \"4500012345\",\n  \"HojaEntradaServicio\": \"5000011111\",\n  \"EntradaMercancia\": \"\",\n  \"AnioEntradaMercancia\": \"\",\n  \"FolioReferencia\": \"\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')/ZUI_DTE_MONITOR.IndicarDocReferencia",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')", "ZUI_DTE_MONITOR.IndicarDocReferencia"]
+            },
+            "description": "Variante para OC de servicios: usa HES en lugar de EM."
+          }
+        },
+        {
+          "name": "Indicar Posiciones OC/EM",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Posicion\": \"00010\",\n  \"Material\": \"MAT-CABLE-001\",\n  \"CantidadOc\": 100,\n  \"CantidadRecibida\": 60,\n  \"CantidadFacturar\": 60,\n  \"UnidadMedida\": \"M\",\n  \"MontoPos\": 900000,\n  \"Moneda\": \"CLP\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')/ZUI_DTE_MONITOR.IndicarPosiciones",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')", "ZUI_DTE_MONITOR.IndicarPosiciones"]
+            },
+            "description": "Confirma las cantidades por posición para un DTE parcial (factura que cubre solo una parte de la EM). Dispara contabilización automática."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 — Historial DTE",
+      "description": "Consultas a la entidad hijo DteHistorial.",
+      "item": [
+        {
+          "name": "Historial de un DTE específico",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')/DteHistorial?$orderby=Timestamp desc",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": [
+                "DteMonitor(TipoDte='{{tipo_dte}}',Folio='{{folio}}',Proveedor='{{proveedor_rut}}')",
+                "DteHistorial"
+              ],
+              "query": [{ "key": "$orderby", "value": "Timestamp desc" }]
+            },
+            "description": "Todos los cambios de estado de un DTE, ordenados por timestamp descendente."
+          }
+        },
+        {
+          "name": "Todos los movimientos de hoy",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/DteHistorial?$filter=Timestamp ge 2026-04-16T00:00:00Z&$orderby=Timestamp desc&$top=100",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["DteHistorial"],
+              "query": [
+                { "key": "$filter",  "value": "Timestamp ge 2026-04-16T00:00:00Z" },
+                { "key": "$orderby", "value": "Timestamp desc" },
+                { "key": "$top",     "value": "100" }
+              ]
+            },
+            "description": "Log de auditoría de todos los cambios realizados hoy en el monitor."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 — $batch (operaciones masivas)",
+      "description": "Crear múltiples DTE en una sola llamada HTTP. Útil cuando el bot procesa lotes de XML.",
+      "item": [
+        {
+          "name": "Batch — Crear 2 DTE en paralelo",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Accept",        "value": "application/json" },
+              { "key": "x-csrf-token",  "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requests\": [\n    {\n      \"id\": \"dte-1\",\n      \"method\": \"POST\",\n      \"url\": \"DteMonitor\",\n      \"headers\": { \"Content-Type\": \"application/json\" },\n      \"body\": {\n        \"TipoDte\": \"033\",\n        \"Folio\": \"200001\",\n        \"Proveedor\": \"76543210-9\",\n        \"Sociedad\": \"1000\",\n        \"ProveedorSap\": \"0000012345\",\n        \"NombreProveedor\": \"SERVICIOS MINEROS S.A.\",\n        \"FechaDocumento\": \"2026-04-15\",\n        \"FechaRecepcionSii\": \"2026-04-15\",\n        \"FechaAceptacion\": \"2026-04-15\",\n        \"FechaVencimiento\": \"2026-05-15\",\n        \"Estado\": \"01\",\n        \"MontoNeto\": 2000000,\n        \"MontoExento\": 0,\n        \"Iec\": 0,\n        \"IvaRecuperable\": 380000,\n        \"IvaNoRecuperable\": 0,\n        \"IvaRetenido\": 0,\n        \"TotalDocumento\": 2380000,\n        \"Moneda\": \"CLP\",\n        \"OrdenCompra\": \"4500099999\",\n        \"EntradaMercancia\": \"\",\n        \"AnioEntradaMercancia\": \"\",\n        \"HojaEntradaServicio\": \"\",\n        \"FolioReferencia\": \"\",\n        \"XmlData\": \"\",\n        \"LogProcesamiento\": \"\"\n      }\n    },\n    {\n      \"id\": \"dte-2\",\n      \"method\": \"POST\",\n      \"url\": \"DteMonitor\",\n      \"headers\": { \"Content-Type\": \"application/json\" },\n      \"body\": {\n        \"TipoDte\": \"034\",\n        \"Folio\": \"990\",\n        \"Proveedor\": \"88888888-8\",\n        \"Sociedad\": \"1000\",\n        \"ProveedorSap\": \"0000067890\",\n        \"NombreProveedor\": \"EMPRESA AGUA POTABLE LTDA\",\n        \"FechaDocumento\": \"2026-04-15\",\n        \"FechaRecepcionSii\": \"2026-04-15\",\n        \"FechaAceptacion\": \"2026-04-15\",\n        \"FechaVencimiento\": \"2026-05-15\",\n        \"Estado\": \"01\",\n        \"MontoNeto\": 0,\n        \"MontoExento\": 450000,\n        \"Iec\": 0,\n        \"IvaRecuperable\": 0,\n        \"IvaNoRecuperable\": 0,\n        \"IvaRetenido\": 0,\n        \"TotalDocumento\": 450000,\n        \"Moneda\": \"CLP\",\n        \"OrdenCompra\": \"\",\n        \"EntradaMercancia\": \"\",\n        \"AnioEntradaMercancia\": \"\",\n        \"HojaEntradaServicio\": \"\",\n        \"FolioReferencia\": \"\",\n        \"XmlData\": \"\",\n        \"LogProcesamiento\": \"\"\n      }\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{s4hana_host}}{{service_root}}/$batch",
+              "host": ["{{s4hana_host}}{{service_root}}"],
+              "path": ["$batch"]
+            },
+            "description": "OData V4 JSON batch. Crea 2 DTE en una sola request. El bot usa esto cuando procesa múltiples XML de un lote de correo."
+          }
+        }
+      ]
+    }
+  ]
+}

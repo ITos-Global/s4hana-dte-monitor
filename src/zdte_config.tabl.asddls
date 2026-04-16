@@ -6,7 +6,6 @@
 define table zdte_config {
 
   key mandt     : mandt not null;
-  // Ejemplos: TOL_PORCENTAJE, TOL_MONTO_CLP, DIAS_RECHAZO
   key parametro : abap.char( 30 ) not null;
 
   valor_num     : abap.dec( 15, 2 );

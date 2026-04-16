@@ -24,6 +24,8 @@
     <item>/src/zdte_monitor.tabl.asddls</item>
     <item>/src/zdte_monitor_h.tabl.asddls</item>
     <item>/src/zdte_config.tabl.asddls</item>
+    <item>/src/zdte_monitor.tabl.xml</item>
+    <item>/src/zdte_monitor_h.tabl.xml</item>
     <item>/src/zi_dte_monitor.ddls.asddls</item>
     <item>/src/zi_dte_monitor_h.ddls.asddls</item>
     <item>/src/zc_dte_monitor.ddls.asddls</item>

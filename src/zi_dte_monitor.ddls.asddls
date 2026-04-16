@@ -5,9 +5,6 @@
 define root view entity ZI_DTE_MONITOR
   as select from zdte_monitor as m
   composition [0..*] of ZI_DTE_MONITOR_H as _Historial
-  association [0..1] to I_BusinessPartnerAddress as _BP
-    on  $projection.ProveedorSap = _BP.BusinessPartner
-    and _BP.AddressRepresentationCode = 'INT'
 {
   key m.tipo_dte                    as TipoDte,
   key m.folio                       as Folio,
@@ -75,6 +72,5 @@ define root view entity ZI_DTE_MONITOR
       @Semantics.user.lastChangedBy: true
       m.aenam                       as UsuarioModificacion,
 
-      _Historial,
-      _BP
+      _Historial
 }

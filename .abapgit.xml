@@ -8,6 +8,7 @@
    <IGNORE>
     <item>/.gitignore</item>
     <item>/.abapgit.xml</item>
+    <item>/.gitattributes</item>
     <item>/README.md</item>
     <item>/LICENSE</item>
     <item>/mta.yaml</item>
@@ -15,7 +16,11 @@
     <item>/xs-app.json</item>
     <item>/xs-security.json</item>
     <item>/app/</item>
+    <item>/postman/</item>
     <item>/spec_unpacked/</item>
+    <item>/src/zi_dte_monitor.bdef.asbdef</item>
+    <item>/src/zi_dte_monitor.dcl.asdcls</item>
+    <item>/src/zui_dte_monitor.srvd.assdls</item>
    </IGNORE>
   </DATA>
  </asx:values>

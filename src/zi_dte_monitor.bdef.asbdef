@@ -64,5 +64,7 @@ define behavior for ZI_DTE_MONITOR_H alias DteHistorial
     TipoDte, Folio, Proveedor, SeqNo,
     Timestamp, EstadoAnterior, EstadoNuevo, Usuario, Descripcion;
 
+  association _DteMonitor;
+
   mapping for zdte_monitor_h corresponding;
 }

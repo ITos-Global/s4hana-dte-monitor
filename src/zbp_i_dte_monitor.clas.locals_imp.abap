@@ -1,477 +1,302 @@
-*"* use this source file for the implementation part of
-*"* local classes (prefixed with LCL_)
-
 CLASS lhc_dtemonitor IMPLEMENTATION.
 
-  "============================================================================
-  " ACCION: Reprocesar
-  " Relanza el flujo completo de validación y contabilización.
-  " Aplica a selección múltiple; omite registros ya Aprobados/Contabilizados.
-  "============================================================================
-  METHOD reprocesar.
-
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_dte)
-      FAILED DATA(lt_failed_read).
-
-    LOOP AT lt_dte INTO DATA(ls_dte).
-
-      " Solo procesar registros que NO sean Aprobado (02) ni Contabilizado (06)
-      IF ls_dte-Estado = '02' OR ls_dte-Estado = '06'.
-        CONTINUE.
-      ENDIF.
-
-      " Delegar lógica de negocio a ZCL_DTE_PROCESSOR
-      DATA(lo_proc) = NEW zcl_dte_processor( ).
-      lo_proc->process_dte(
-        EXPORTING
-          iv_tipo_dte  = ls_dte-TipoDte
-          iv_folio     = ls_dte-Folio
-          iv_proveedor = ls_dte-Proveedor
-          iv_sociedad  = ls_dte-Sociedad
-          iv_xml_data  = ls_dte-XmlData
-        IMPORTING
-          ev_estado    = DATA(lv_estado)
-          ev_log       = DATA(lv_log)
-          ev_doc_fact  = DATA(lv_doc_fact)
-          ev_year_fact = DATA(lv_year_fact)
-      ).
-
-      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
-        ENTITY DteMonitor
-        UPDATE FIELDS ( Estado LogProcesamiento
-                        DocumentoFacturaSap AnioFacturaSap
-                        FechaModificacion UsuarioModificacion )
-        WITH VALUE #( (
-          %tky                = ls_dte-%tky
-          Estado              = lv_estado
-          LogProcesamiento    = lv_log
-          DocumentoFacturaSap = lv_doc_fact
-          AnioFacturaSap      = lv_year_fact
-          FechaModificacion   = cl_abap_context_info=>get_system_date( )
-          UsuarioModificacion = cl_abap_context_info=>get_user_alias( )
-        ) )
-        REPORTED DATA(lt_rep).
-
-    ENDLOOP.
-
-    " Devolver estado actualizado al caller (OData response)
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_result).
-
-    result = VALUE #( FOR ls IN lt_result
-                      ( %tky   = ls-%tky
-                        %param = CORRESPONDING #( ls ) ) ).
-  ENDMETHOD.
-
-  "============================================================================
-  " ACCION: Rechazar
-  " Parámetro: ZS_DTE_RECHAZO { Motivo }
-  " Cambia estado a 03, registra motivo en log.
-  "============================================================================
-  METHOD rechazar.
-
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      FIELDS ( Estado )
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_dte).
-
-    LOOP AT lt_dte INTO DATA(ls_dte).
-
-      IF ls_dte-Estado = '02' OR ls_dte-Estado = '06'.
-        CONTINUE.
-      ENDIF.
-
-      " Leer parámetro Motivo (viene en %param de la key)
-      DATA(lv_motivo) = VALUE #(
-        keys[ %tky = ls_dte-%tky ]-%param-Motivo OPTIONAL ).
-
-      IF lv_motivo IS INITIAL.
-        lv_motivo = 'Rechazado manualmente por usuario'.
-      ENDIF.
-
-      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
-        ENTITY DteMonitor
-        UPDATE FIELDS ( Estado LogProcesamiento
-                        FechaModificacion UsuarioModificacion )
-        WITH VALUE #( (
-          %tky                = ls_dte-%tky
-          Estado              = '03'
-          LogProcesamiento    = |Rechazado. Motivo: { lv_motivo }|
-          FechaModificacion   = cl_abap_context_info=>get_system_date( )
-          UsuarioModificacion = cl_abap_context_info=>get_user_alias( )
-        ) ).
-
-    ENDLOOP.
-
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_result).
-
-    result = VALUE #( FOR ls IN lt_result
-                      ( %tky   = ls-%tky
-                        %param = CORRESPONDING #( ls ) ) ).
-  ENDMETHOD.
-
-  "============================================================================
-  " ACCION: IndicarDocReferencia
-  " Parámetro: ZS_DTE_DOC_REF { OrdenCompra, HojaEntradaServicio,
-  "                              EntradaMercancia, AnioEntradaMercancia,
-  "                              FolioReferencia }
-  " Persiste los documentos de referencia y dispara reproceso.
-  "============================================================================
-  METHOD indicar_doc_referencia.
-
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      FIELDS ( Estado )
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_dte).
-
-    LOOP AT lt_dte INTO DATA(ls_dte).
-
-      DATA(ls_param) = VALUE #(
-        keys[ %tky = ls_dte-%tky ]-%param OPTIONAL ).
-
-      " Actualizar campos de referencia en el registro
-      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
-        ENTITY DteMonitor
-        UPDATE FIELDS ( OrdenCompra HojaEntradaServicio
-                        EntradaMercancia AnioEntradaMercancia
-                        FolioReferencia )
-        WITH VALUE #( (
-          %tky                 = ls_dte-%tky
-          OrdenCompra          = ls_param-OrdenCompra
-          HojaEntradaServicio  = ls_param-HojaEntradaServicio
-          EntradaMercancia     = ls_param-EntradaMercancia
-          AnioEntradaMercancia = ls_param-AnioEntradaMercancia
-          FolioReferencia      = ls_param-FolioReferencia
-        ) ).
-
-    ENDLOOP.
-
-    " Reprocesar con los nuevos documentos de referencia
-    reprocesar( IMPORTING keys = keys RESULT result ).
-
-  ENDMETHOD.
-
-  "============================================================================
-  " ACCION: IndicarPosiciones
-  " Parámetro: ZS_DTE_POSICION (una posición por llamada; el UI envía la
-  " posición confirmada para el DTE parcial)
-  " Contabiliza con las cantidades/montos que el usuario eligió.
-  "============================================================================
-  METHOD indicar_posiciones.
-
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_dte).
-
-    LOOP AT lt_dte INTO DATA(ls_dte).
-
-      DATA(ls_param) = VALUE #(
-        keys[ %tky = ls_dte-%tky ]-%param OPTIONAL ).
-
-      " Construir tabla de posiciones con la única posición enviada
-      DATA(lt_posiciones) = VALUE zcl_dte_processor=>tt_posiciones( (
-        posicion         = ls_param-Posicion
-        material         = ls_param-Material
-        cantidad         = ls_param-CantidadFacturar
-        unidad           = ls_param-UnidadMedida
-      ) ).
-
-      DATA(lo_proc) = NEW zcl_dte_processor( ).
-      lo_proc->process_dte_with_positions(
-        EXPORTING
-          iv_tipo_dte   = ls_dte-TipoDte
-          iv_folio      = ls_dte-Folio
-          iv_proveedor  = ls_dte-Proveedor
-          iv_sociedad   = ls_dte-Sociedad
-          iv_xml_data   = ls_dte-XmlData
-          it_posiciones = lt_posiciones
-        IMPORTING
-          ev_estado     = DATA(lv_estado)
-          ev_log        = DATA(lv_log)
-          ev_doc_fact   = DATA(lv_doc_fact)
-          ev_year_fact  = DATA(lv_year_fact)
-      ).
-
-      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
-        ENTITY DteMonitor
-        UPDATE FIELDS ( Estado LogProcesamiento
-                        DocumentoFacturaSap AnioFacturaSap
-                        FechaModificacion UsuarioModificacion )
-        WITH VALUE #( (
-          %tky                = ls_dte-%tky
-          Estado              = lv_estado
-          LogProcesamiento    = lv_log
-          DocumentoFacturaSap = lv_doc_fact
-          AnioFacturaSap      = lv_year_fact
-          FechaModificacion   = cl_abap_context_info=>get_system_date( )
-          UsuarioModificacion = cl_abap_context_info=>get_user_alias( )
-        ) ).
-
-    ENDLOOP.
-
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_result).
-
-    result = VALUE #( FOR ls IN lt_result
-                      ( %tky   = ls-%tky
-                        %param = CORRESPONDING #( ls ) ) ).
-  ENDMETHOD.
-
-  "============================================================================
-  " DETERMINACION: SetDiasPendientes
-  " Calcula días transcurridos desde FechaRecepcionSii para estados 01 y 04.
-  "============================================================================
-  METHOD set_dias_pendientes.
-
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      FIELDS ( FechaRecepcionSii Estado )
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_dte).
-
-    DATA(lv_hoy) = cl_abap_context_info=>get_system_date( ).
-
-    LOOP AT lt_dte INTO DATA(ls_dte).
-      IF ls_dte-Estado <> '01' AND ls_dte-Estado <> '04'.
-        CONTINUE.
-      ENDIF.
-
-      CHECK ls_dte-FechaRecepcionSii IS NOT INITIAL.
-
-      DATA(lv_dias) = CONV abap_int4( lv_hoy - ls_dte-FechaRecepcionSii ).
-
-      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
-        ENTITY DteMonitor
-        UPDATE FIELDS ( DiasPendientes )
-        WITH VALUE #( (
-          %tky           = ls_dte-%tky
-          DiasPendientes = lv_dias
-        ) ).
-    ENDLOOP.
-  ENDMETHOD.
-
-  "============================================================================
-  " DETERMINACION: CrearHistorial
-  " Inserta registro en ZDTE_MONITOR_H al persistir un cambio de estado.
-  "============================================================================
-  METHOD crear_historial.
-
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      FIELDS ( Estado LogProcesamiento )
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_dte).
-
-    LOOP AT lt_dte INTO DATA(ls_dte).
-
-      " Número de secuencia siguiente para este DTE
-      SELECT MAX( seqno )
-        FROM zdte_monitor_h
-        WHERE tipo_dte  = @ls_dte-TipoDte
-          AND folio     = @ls_dte-Folio
-          AND proveedor = @ls_dte-Proveedor
-        INTO @DATA(lv_max_seq).
-
-      " Convertir fecha+hora a timestamp
-      DATA(lv_ts) = CONV tzntstmps(
-        cl_abap_context_info=>get_system_date( ) &&
-        cl_abap_context_info=>get_system_time( )
-      ).
-
-      INSERT zdte_monitor_h FROM @(
-        VALUE zdte_monitor_h(
-          mandt        = sy-mandt
-          tipo_dte     = ls_dte-TipoDte
-          folio        = ls_dte-Folio
-          proveedor    = ls_dte-Proveedor
-          seqno        = lv_max_seq + 1
-          timestamp    = lv_ts
-          estado_nuevo = ls_dte-Estado
-          usrname      = cl_abap_context_info=>get_user_alias( )
-          texto        = ls_dte-LogProcesamiento
-        )
-      ).
-
-    ENDLOOP.
-  ENDMETHOD.
-
-  "============================================================================
-  " VALIDACION: ValidateDocReferencia
-  " Verifica que la OC informada exista en EKKO y corresponda a la sociedad.
-  "============================================================================
-  METHOD validate_doc_referencia.
-
-    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      FIELDS ( OrdenCompra Sociedad )
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_dte).
-
-    LOOP AT lt_dte INTO DATA(ls_dte).
-
-      " Sin documentos de referencia → el processor gestionará la lógica
-      IF ls_dte-OrdenCompra IS INITIAL.
-        CONTINUE.
-      ENDIF.
-
-      " Verificar existencia de OC en EKKO (no anulada, sociedad correcta)
-      SELECT SINGLE @abap_true
-        FROM ekko
-        WHERE ebeln = @ls_dte-OrdenCompra
-          AND bukrs = @ls_dte-Sociedad
-          AND loekz = @space
-        INTO @DATA(lv_existe).
-
-      IF lv_existe <> abap_true.
-        APPEND VALUE #(
-          %tky        = ls_dte-%tky
-          %state_area = 'VALIDATE_DOC_REF'
-        ) TO failed-dtemonitor.
-
-        APPEND VALUE #(
-          %tky        = ls_dte-%tky
-          %state_area = 'VALIDATE_DOC_REF'
-          %msg        = new_message_with_text(
-                          severity = if_abap_behv_message=>severity-error
-                          text     = |OC { ls_dte-OrdenCompra } no existe|
-                                  && | o está anulada en sociedad { ls_dte-Sociedad }.|
-                        )
-        ) TO reported-dtemonitor.
-      ENDIF.
-
-    ENDLOOP.
-  ENDMETHOD.
-
-  "============================================================================
-  " FEATURE CONTROL: habilitar/deshabilitar acciones y campos según estado
-  "============================================================================
   METHOD get_instance_features.
-
     READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      FIELDS ( Estado )
+      ENTITY DteMonitor FIELDS ( Estado )
       WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_dte)
-      FAILED DATA(lt_failed).
+      RESULT DATA(lt_feat)
+      FAILED DATA(lt_f_feat).
 
-    result = VALUE #( FOR ls IN lt_dte
-      LET " Aprobado o Contabilizado → no se puede reprocesar ni rechazar
-          bBloqueado = xsdbool( ls-Estado = '02' OR ls-Estado = '06' )
-          " Solo estado 04 (Por rechazar) permite indicar doc. ref. y posiciones
-          bPorRech   = xsdbool( ls-Estado = '04' )
-      IN (
-        %tky = ls-%tky
+    DATA ls_res_feat LIKE LINE OF result.
 
-        %action-Reprocesar = COND #(
-          WHEN bBloqueado = abap_true
-          THEN if_abap_behv=>fc-o-disabled
-          ELSE if_abap_behv=>fc-o-enabled )
+    LOOP AT lt_feat INTO DATA(ls_feat).
+      CLEAR ls_res_feat.
+      ls_res_feat-%tky = ls_feat-%tky.
 
-        %action-Rechazar = COND #(
-          WHEN bBloqueado = abap_true
-          THEN if_abap_behv=>fc-o-disabled
-          ELSE if_abap_behv=>fc-o-enabled )
+      IF ls_feat-Estado = '02' OR ls_feat-Estado = '06'.
+        ls_res_feat-%features-%action-Reprocesar           = if_abap_behv=>fc-o-disabled.
+        ls_res_feat-%features-%action-Rechazar             = if_abap_behv=>fc-o-disabled.
+        ls_res_feat-%features-%action-IndicarDocReferencia = if_abap_behv=>fc-o-disabled.
+        ls_res_feat-%features-%action-IndicarPosiciones    = if_abap_behv=>fc-o-disabled.
+      ELSE.
+        ls_res_feat-%features-%action-Reprocesar = if_abap_behv=>fc-o-enabled.
+        ls_res_feat-%features-%action-Rechazar   = COND #(
+          WHEN ls_feat-Estado = '03' THEN if_abap_behv=>fc-o-disabled
+          ELSE if_abap_behv=>fc-o-enabled ).
+        ls_res_feat-%features-%action-IndicarDocReferencia = COND #(
+          WHEN ls_feat-Estado = '04' THEN if_abap_behv=>fc-o-enabled
+          ELSE if_abap_behv=>fc-o-disabled ).
+        ls_res_feat-%features-%action-IndicarPosiciones = COND #(
+          WHEN ls_feat-Estado = '04' THEN if_abap_behv=>fc-o-enabled
+          ELSE if_abap_behv=>fc-o-disabled ).
+      ENDIF.
 
-        %action-IndicarDocReferencia = COND #(
-          WHEN bPorRech = abap_true
-          THEN if_abap_behv=>fc-o-enabled
-          ELSE if_abap_behv=>fc-o-disabled )
+      IF ls_feat-Estado = '04'.
+        ls_res_feat-%features-%field-OrdenCompra          = if_abap_behv=>fc-f-unrestricted.
+        ls_res_feat-%features-%field-HojaEntradaServicio  = if_abap_behv=>fc-f-unrestricted.
+        ls_res_feat-%features-%field-EntradaMercancia     = if_abap_behv=>fc-f-unrestricted.
+        ls_res_feat-%features-%field-AnioEntradaMercancia = if_abap_behv=>fc-f-unrestricted.
+        ls_res_feat-%features-%field-FolioReferencia      = if_abap_behv=>fc-f-unrestricted.
+      ELSE.
+        ls_res_feat-%features-%field-OrdenCompra          = if_abap_behv=>fc-f-read_only.
+        ls_res_feat-%features-%field-HojaEntradaServicio  = if_abap_behv=>fc-f-read_only.
+        ls_res_feat-%features-%field-EntradaMercancia     = if_abap_behv=>fc-f-read_only.
+        ls_res_feat-%features-%field-AnioEntradaMercancia = if_abap_behv=>fc-f-read_only.
+        ls_res_feat-%features-%field-FolioReferencia      = if_abap_behv=>fc-f-read_only.
+      ENDIF.
 
-        %action-IndicarPosiciones = COND #(
-          WHEN bPorRech = abap_true
-          THEN if_abap_behv=>fc-o-enabled
-          ELSE if_abap_behv=>fc-o-disabled )
-
-        " Campos de referencia: editables solo en estado 04
-        %field-OrdenCompra = COND #(
-          WHEN bPorRech = abap_true
-          THEN if_abap_behv=>fc-f-unrestricted
-          ELSE if_abap_behv=>fc-f-read_only )
-
-        %field-HojaEntradaServicio = COND #(
-          WHEN bPorRech = abap_true
-          THEN if_abap_behv=>fc-f-unrestricted
-          ELSE if_abap_behv=>fc-f-read_only )
-
-        %field-EntradaMercancia = COND #(
-          WHEN bPorRech = abap_true
-          THEN if_abap_behv=>fc-f-unrestricted
-          ELSE if_abap_behv=>fc-f-read_only )
-
-        %field-AnioEntradaMercancia = COND #(
-          WHEN bPorRech = abap_true
-          THEN if_abap_behv=>fc-f-unrestricted
-          ELSE if_abap_behv=>fc-f-read_only )
-
-        %field-FolioReferencia = COND #(
-          WHEN bPorRech = abap_true
-          THEN if_abap_behv=>fc-f-unrestricted
-          ELSE if_abap_behv=>fc-f-read_only )
-      )
-    ).
+      APPEND ls_res_feat TO result.
+    ENDLOOP.
   ENDMETHOD.
 
-  "============================================================================
-  " AUTHORIZATION: verifica acceso por sociedad (complementa el DCL)
-  "============================================================================
   METHOD get_instance_authorizations.
-
     READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
-      ENTITY DteMonitor
-      FIELDS ( Sociedad )
+      ENTITY DteMonitor FIELDS ( Sociedad )
       WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_dte).
+      RESULT DATA(lt_auth)
+      FAILED DATA(lt_f_auth).
 
-    LOOP AT lt_dte INTO DATA(ls_dte).
+    LOOP AT lt_auth INTO DATA(ls_auth).
       AUTHORITY-CHECK OBJECT 'F_BKPF_BUK'
-        ID 'BUKRS' FIELD ls_dte-Sociedad
+        ID 'BUKRS' FIELD ls_auth-Sociedad
         ID 'ACTVT' FIELD '02'.
-
       DATA(lv_auth) = COND #(
-        WHEN sy-subrc = 0
-        THEN if_abap_behv=>auth-allowed
-        ELSE if_abap_behv=>auth-unauthorized ).
-
+        WHEN sy-subrc = 0 THEN if_abap_behv=>auth-allowed
+        ELSE                   if_abap_behv=>auth-unauthorized ).
       APPEND VALUE #(
-        %tky                          = ls_dte-%tky
-        %update                       = lv_auth
-        %action-Reprocesar            = lv_auth
-        %action-Rechazar              = lv_auth
-        %action-IndicarDocReferencia  = lv_auth
-        %action-IndicarPosiciones     = lv_auth
+        %tky                         = ls_auth-%tky
+        %update                      = lv_auth
+        %action-Reprocesar           = lv_auth
+        %action-Rechazar             = lv_auth
+        %action-IndicarDocReferencia = lv_auth
+        %action-IndicarPosiciones    = lv_auth
       ) TO result.
     ENDLOOP.
   ENDMETHOD.
 
-ENDCLASS.
+  METHOD reprocesar.
+    DATA(lv_user_rep) = cl_abap_context_info=>get_user_technical_name( ).
+    DATA(lv_date_rep) = cl_abap_context_info=>get_system_date( ).
 
+    LOOP AT keys INTO DATA(ls_key_rep).
+      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+        ENTITY DteMonitor
+          UPDATE FIELDS ( Estado LogProcesamiento FechaModificacion UsuarioModificacion )
+          WITH VALUE #( (
+            %tky                = ls_key_rep-%tky
+            Estado              = '01'
+            LogProcesamiento    = |[{ lv_date_rep }] Reproceso manual por { lv_user_rep }.|
+            FechaModificacion   = lv_date_rep
+            UsuarioModificacion = lv_user_rep
+          ) )
+        REPORTED reported
+        FAILED   failed.
+    ENDLOOP.
 
-CLASS lsc_zi_dte_monitor IMPLEMENTATION.
-  METHOD finalize.
-    " El managed runtime calcula campos ETG y auditoría automáticamente
+    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+      ENTITY DteMonitor ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_res_rep)
+      FAILED DATA(lt_f_rep).
+
+    LOOP AT lt_res_rep INTO DATA(ls_res_rep).
+      APPEND VALUE #(
+        %tky   = ls_res_rep-%tky
+        %param = CORRESPONDING #( ls_res_rep )
+      ) TO result.
+    ENDLOOP.
   ENDMETHOD.
 
-  METHOD check_before_save.
-    " Validaciones transversales antes del commit
+  METHOD rechazar.
+    DATA(lv_user_rec) = cl_abap_context_info=>get_user_technical_name( ).
+    DATA(lv_date_rec) = cl_abap_context_info=>get_system_date( ).
+
+    LOOP AT keys INTO DATA(ls_key_rec).
+      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+        ENTITY DteMonitor
+          UPDATE FIELDS ( Estado LogProcesamiento FechaModificacion UsuarioModificacion )
+          WITH VALUE #( (
+            %tky                = ls_key_rec-%tky
+            Estado              = '03'
+            LogProcesamiento    = |[{ lv_date_rec }] Rechazado por { lv_user_rec }. Motivo: { ls_key_rec-%param-Motivo }|
+            FechaModificacion   = lv_date_rec
+            UsuarioModificacion = lv_user_rec
+          ) )
+        REPORTED reported
+        FAILED   failed.
+    ENDLOOP.
+
+    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+      ENTITY DteMonitor ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_res_rec)
+      FAILED DATA(lt_f_rec).
+
+    LOOP AT lt_res_rec INTO DATA(ls_res_rec).
+      APPEND VALUE #(
+        %tky   = ls_res_rec-%tky
+        %param = CORRESPONDING #( ls_res_rec )
+      ) TO result.
+    ENDLOOP.
   ENDMETHOD.
 
-  METHOD save.
-    " Managed runtime gestiona el save con la tabla persistente zdte_monitor
+  METHOD indicar_doc_referencia.
+    DATA(lv_user_idr) = cl_abap_context_info=>get_user_technical_name( ).
+    DATA(lv_date_idr) = cl_abap_context_info=>get_system_date( ).
+
+    LOOP AT keys INTO DATA(ls_key_idr).
+      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+        ENTITY DteMonitor
+          UPDATE FIELDS ( OrdenCompra HojaEntradaServicio
+                          EntradaMercancia AnioEntradaMercancia FolioReferencia
+                          Estado LogProcesamiento FechaModificacion UsuarioModificacion )
+          WITH VALUE #( (
+            %tky                 = ls_key_idr-%tky
+            OrdenCompra          = ls_key_idr-%param-OrdenCompra
+            HojaEntradaServicio  = ls_key_idr-%param-HojaEntradaServicio
+            EntradaMercancia     = ls_key_idr-%param-EntradaMercancia
+            AnioEntradaMercancia = ls_key_idr-%param-AnioEntradaMercancia
+            FolioReferencia      = ls_key_idr-%param-FolioReferencia
+            Estado               = '01'
+            LogProcesamiento     = |[{ lv_date_idr }] Doc. referencia indicado por { lv_user_idr }.|
+            FechaModificacion    = lv_date_idr
+            UsuarioModificacion  = lv_user_idr
+          ) )
+        REPORTED reported
+        FAILED   failed.
+    ENDLOOP.
+
+    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+      ENTITY DteMonitor ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_res_idr)
+      FAILED DATA(lt_f_idr).
+
+    LOOP AT lt_res_idr INTO DATA(ls_res_idr).
+      APPEND VALUE #(
+        %tky   = ls_res_idr-%tky
+        %param = CORRESPONDING #( ls_res_idr )
+      ) TO result.
+    ENDLOOP.
   ENDMETHOD.
 
-  METHOD cleanup.
+  METHOD indicar_posiciones.
+    DATA(lv_user_ip) = cl_abap_context_info=>get_user_technical_name( ).
+    DATA(lv_date_ip) = cl_abap_context_info=>get_system_date( ).
+
+    LOOP AT keys INTO DATA(ls_key_ip).
+      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+        ENTITY DteMonitor
+          UPDATE FIELDS ( Estado LogProcesamiento FechaModificacion UsuarioModificacion )
+          WITH VALUE #( (
+            %tky                = ls_key_ip-%tky
+            Estado              = '01'
+            LogProcesamiento    = |[{ lv_date_ip }] Posicion { ls_key_ip-%param-Posicion } confirmada por { lv_user_ip }.|
+            FechaModificacion   = lv_date_ip
+            UsuarioModificacion = lv_user_ip
+          ) )
+        REPORTED reported
+        FAILED   failed.
+    ENDLOOP.
+
+    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+      ENTITY DteMonitor ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_res_ip)
+      FAILED DATA(lt_f_ip).
+
+    LOOP AT lt_res_ip INTO DATA(ls_res_ip).
+      APPEND VALUE #(
+        %tky   = ls_res_ip-%tky
+        %param = CORRESPONDING #( ls_res_ip )
+      ) TO result.
+    ENDLOOP.
   ENDMETHOD.
+
+  METHOD set_dias_pendientes.
+    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+      ENTITY DteMonitor FIELDS ( FechaRecepcionSii Estado )
+      WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_sdp)
+      FAILED DATA(lt_f_sdp).
+
+    DATA(lv_hoy) = cl_abap_context_info=>get_system_date( ).
+
+    LOOP AT lt_sdp INTO DATA(ls_sdp).
+      IF ls_sdp-FechaRecepcionSii IS INITIAL.         CONTINUE. ENDIF.
+      IF ls_sdp-Estado <> '01' AND ls_sdp-Estado <> '04'. CONTINUE. ENDIF.
+
+      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+        ENTITY DteMonitor
+          UPDATE FIELDS ( DiasPendientes )
+          WITH VALUE #( (
+            %tky           = ls_sdp-%tky
+            DiasPendientes = lv_hoy - ls_sdp-FechaRecepcionSii
+          ) )
+        REPORTED DATA(lt_rep_sdp)
+        FAILED   DATA(lt_fail_sdp).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD crear_historial.
+    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+      ENTITY DteMonitor FIELDS ( Estado LogProcesamiento )
+      WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_ch)
+      FAILED DATA(lt_f_ch).
+
+    DATA lv_ts_ch   TYPE tzntstmps.
+    DATA lv_max_ch  TYPE n LENGTH 3.
+    DATA lv_next_ch TYPE n LENGTH 3.
+    GET TIME STAMP FIELD lv_ts_ch.
+    DATA(lv_usr_ch) = cl_abap_context_info=>get_user_technical_name( ).
+
+    DATA lt_hist TYPE TABLE FOR CREATE zi_dte_monitor\_historial.
+
+    LOOP AT lt_ch INTO DATA(ls_ch).
+      SELECT SINGLE estado FROM zdte_monitor
+        WHERE tipo_dte  = @ls_ch-TipoDte
+          AND folio     = @ls_ch-Folio
+          AND proveedor = @ls_ch-Proveedor
+        INTO @DATA(lv_ant_ch).
+
+      IF sy-subrc <> 0.
+        lv_ant_ch = ''.
+      ELSEIF lv_ant_ch = ls_ch-Estado.
+        CONTINUE.
+      ENDIF.
+
+      SELECT MAX( seqno ) FROM zdte_monitor_h
+        WHERE tipo_dte  = @ls_ch-TipoDte
+          AND folio     = @ls_ch-Folio
+          AND proveedor = @ls_ch-Proveedor
+        INTO @lv_max_ch.
+      lv_next_ch = lv_max_ch + 1.
+
+      APPEND VALUE #(
+        %tky    = ls_ch-%tky
+        %target = VALUE #( (
+          %cid           = |H_{ ls_ch-TipoDte }{ ls_ch-Folio }{ ls_ch-Proveedor }{ lv_next_ch }|
+          SeqNo          = lv_next_ch
+          Timestamp      = lv_ts_ch
+          EstadoAnterior = lv_ant_ch
+          EstadoNuevo    = ls_ch-Estado
+          Usuario        = lv_usr_ch
+          Descripcion    = |{ lv_ant_ch } → { ls_ch-Estado }. { ls_ch-LogProcesamiento }|
+        ) )
+      ) TO lt_hist.
+    ENDLOOP.
+
+    CHECK lt_hist IS NOT INITIAL.
+    MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+      ENTITY DteMonitor CREATE BY \_historial
+        FIELDS ( SeqNo Timestamp EstadoAnterior EstadoNuevo Usuario Descripcion )
+        WITH lt_hist
+      REPORTED DATA(lt_rep_ch)
+      FAILED   DATA(lt_fail_ch).
+  ENDMETHOD.
+
+  METHOD validate_doc_referencia.
+    " TODO: Agregar validación de OC contra API liberada cuando esté disponible.
+    " I_PurchaseOrder no está en contrato C1 para uso directo en behavior pools.
+    " Por ahora la validación pasa siempre; el procesador ZCL_DTE_PROCESSOR
+    " realizará la verificación en tiempo de ejecución al contabilizar.
+  ENDMETHOD.
+
 ENDCLASS.

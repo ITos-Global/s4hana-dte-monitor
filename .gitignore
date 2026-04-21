@@ -22,3 +22,9 @@ spec_unpacked/
 
 # Claude Code
 .claude/
+
+# Local dev credentials - nunca commitear
+.env
+app/**/.env
+ui5-local.yaml
+app/**/ui5-local.yaml

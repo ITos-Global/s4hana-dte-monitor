@@ -3,174 +3,230 @@
     xmlns:mvc="sap.ui.core.mvc"
     xmlns="sap.m"
     xmlns:f="sap.f"
-    xmlns:comp="sap.ui.comp.smarttable"
-    xmlns:sfb="sap.ui.comp.smartfilterbar"
     xmlns:core="sap.ui.core"
     xmlns:table="sap.ui.table"
+    xmlns:unified="sap.ui.unified"
     displayBlock="true">
 
     <f:DynamicPage id="dynamicPage" headerExpanded="true" toggleHeaderOnTitleClick="false">
 
-        <!-- ================================================================
-             TÍTULO
-             ================================================================ -->
         <f:title>
             <f:DynamicPageTitle>
                 <f:heading>
                     <Title text="{i18n>appTitle}" level="H2"/>
                 </f:heading>
-                <f:snappedContent>
-                    <Text text="{i18n>appDescription}"/>
-                </f:snappedContent>
             </f:DynamicPageTitle>
         </f:title>
 
-        <!-- ================================================================
-             FILTROS — SmartFilterBar lee anotaciones @UI.selectionField del CDS
-             ================================================================ -->
+        <!-- ============================================================
+             FILTROS
+             ============================================================ -->
         <f:header>
             <f:DynamicPageHeader pinnable="true">
-                <sfb:SmartFilterBar
-                    id="filterBar"
-                    entitySet="DteMonitor"
-                    persistencyKey="DteMonitorFilter"
-                    search=".onSearch"
-                    showRestoreButton="true"
-                    showClearButton="true"
-                    useToolbar="false">
-                    <!-- Campos adicionales no cubiertos por anotaciones CDS -->
-                    <sfb:controlConfiguration>
-                        <sfb:ControlConfiguration
-                            key="FechaDocumento"
-                            visibleInAdvancedArea="false"
-                            preventInitialDataFetchInValueHelpDialog="false">
-                            <sfb:customControl>
-                                <DateRangeSelection
-                                    id="drsFechaDoc"
-                                    delimiter="-"
-                                    displayFormat="dd/MM/yyyy"/>
-                            </sfb:customControl>
-                        </sfb:ControlConfiguration>
-                        <sfb:ControlConfiguration
-                            key="FechaRecepcionSii"
-                            visibleInAdvancedArea="false">
-                            <sfb:customControl>
-                                <DateRangeSelection
-                                    id="drsFechaRecep"
-                                    delimiter="-"
-                                    displayFormat="dd/MM/yyyy"/>
-                            </sfb:customControl>
-                        </sfb:ControlConfiguration>
-                    </sfb:controlConfiguration>
-                </sfb:SmartFilterBar>
+                <HBox wrap="Wrap" class="sapUiSmallMarginBegin sapUiSmallMarginEnd sapUiSmallMarginBottom">
+
+                    <VBox class="sapUiSmallMarginEnd">
+                        <Label text="Sociedad"/>
+                        <Input id="filterSociedad" width="10rem" placeholder="Ej: 1000"/>
+                    </VBox>
+
+                    <VBox class="sapUiSmallMarginEnd">
+                        <Label text="Tipo DTE"/>
+                        <Input id="filterTipoDte" width="8rem" placeholder="Ej: 33"/>
+                    </VBox>
+
+                    <VBox class="sapUiSmallMarginEnd">
+                        <Label text="RUT Proveedor"/>
+                        <Input id="filterProveedor" width="12rem" placeholder="Ej: 76123456-7"/>
+                    </VBox>
+
+                    <VBox class="sapUiSmallMarginEnd">
+                        <Label text="Estado"/>
+                        <Select id="filterEstado" width="12rem">
+                            <core:Item key="" text="Todos"/>
+                            <core:Item key="01" text="01 - Pendiente"/>
+                            <core:Item key="02" text="02 - Contabilizado"/>
+                            <core:Item key="03" text="03 - Rechazado"/>
+                            <core:Item key="04" text="04 - Revisar Doc. Ref."/>
+                            <core:Item key="05" text="05 - Error"/>
+                            <core:Item key="06" text="06 - Anulado"/>
+                        </Select>
+                    </VBox>
+
+                    <VBox class="sapUiSmallMarginEnd">
+                        <Label text="Fecha Documento"/>
+                        <DateRangeSelection id="filterFechaDoc" displayFormat="dd/MM/yyyy" delimiter="-" width="16rem"/>
+                    </VBox>
+
+                    <VBox class="sapUiSmallMarginEnd">
+                        <Label text="Fecha Recepción SII"/>
+                        <DateRangeSelection id="filterFechaRecep" displayFormat="dd/MM/yyyy" delimiter="-" width="16rem"/>
+                    </VBox>
+
+                    <VBox justifyContent="End">
+                        <HBox>
+                            <Button text="{i18n>btnBuscar}" icon="sap-icon://search"
+                                    type="Emphasized" press=".onSearch" class="sapUiSmallMarginEnd"/>
+                            <Button text="{i18n>btnLimpiar}" icon="sap-icon://clear-filter"
+                                    press=".onClearFilters"/>
+                        </HBox>
+                    </VBox>
+
+                </HBox>
             </f:DynamicPageHeader>
         </f:header>
 
-        <!-- ================================================================
-             CONTENIDO — SmartTable con GridTable
-             ================================================================ -->
+        <!-- ============================================================
+             TABLA
+             ============================================================ -->
         <f:content>
-            <comp:SmartTable
+            <table:Table
                 id="monitorTable"
-                entitySet="DteMonitor"
-                smartFilterId="filterBar"
-                tableType="GridTable"
-                useVariantManagement="true"
-                useTablePersonalisation="true"
-                header="{i18n>tableTitle}"
-                showRowCount="true"
-                enableExport="true"
-                useExportToExcel="true"
-                requestAtLeastFields="Estado,DiasPendientes,Criticality,XmlData"
-                initiallyVisibleFields="Sociedad,TipoDte,Folio,Proveedor,NombreProveedor,Estado,FechaDocumento,FechaRecepcionSii,TotalDocumento,DiasPendientes"
-                class="sapUiResponsiveContentPadding">
+                rows="{
+                    path: '/DteMonitor',
+                    parameters: {
+                        $count: true,
+                        $orderby: 'FechaRecepcionSii desc'
+                    }
+                }"
+                selectionMode="MultiToggle"
+                rowSelectionChange=".onRowSelectionChange"
+                visibleRowCountMode="Auto"
+                minAutoRowCount="10"
+                enableBusyIndicator="true"
+                alternateRowColors="true"
+                class="sapUiSizeCompact">
 
-                <!-- --------------------------------------------------------
-                     TOOLBAR DE ACCIONES
-                     -------------------------------------------------------- -->
-                <comp:customToolbar>
+                <table:extension>
                     <OverflowToolbar style="Clear">
+                        <Title text="{i18n>tableTitle}" level="H3"/>
                         <ToolbarSpacer/>
 
-                        <Button
-                            id="btnReprocesar"
+                        <Button id="btnReprocesar"
                             text="{i18n>btnReprocesar}"
                             icon="sap-icon://refresh"
                             enabled="false"
-                            press=".onReprocesar"
-                            tooltip="{i18n>btnReprocesarTooltip}"/>
+                            press=".onReprocesar"/>
 
-                        <Button
-                            id="btnVerPdf"
+                        <Button id="btnVerPdf"
                             text="{i18n>btnVerPdf}"
                             icon="sap-icon://pdf-attachment"
                             enabled="false"
-                            press=".onVerPdf"
-                            tooltip="{i18n>btnVerPdfTooltip}"/>
+                            press=".onVerPdf"/>
 
-                        <Button
-                            id="btnDocRef"
+                        <Button id="btnDocRef"
                             text="{i18n>btnDocRef}"
                             icon="sap-icon://add-document"
                             enabled="false"
-                            press=".onIndicarDocRef"
-                            tooltip="{i18n>btnDocRefTooltip}"/>
+                            press=".onIndicarDocRef"/>
 
-                        <Button
-                            id="btnPosiciones"
+                        <Button id="btnPosiciones"
                             text="{i18n>btnPosiciones}"
                             icon="sap-icon://detail-view"
                             enabled="false"
-                            press=".onIndicarPosiciones"
-                            tooltip="{i18n>btnPosicionesTooltip}"/>
+                            press=".onIndicarPosiciones"/>
 
-                        <Button
-                            id="btnRechazar"
+                        <Button id="btnRechazar"
                             text="{i18n>btnRechazar}"
                             icon="sap-icon://decline"
                             type="Reject"
                             enabled="false"
-                            press=".onRechazar"
-                            tooltip="{i18n>btnRechazarTooltip}"/>
+                            press=".onRechazar"/>
+
+                        <Button
+                            text="{i18n>btnExportar}"
+                            icon="sap-icon://excel-attachment"
+                            press=".onExportToExcel"/>
 
                     </OverflowToolbar>
-                </comp:customToolbar>
+                </table:extension>
 
-                <!-- --------------------------------------------------------
-                     CONFIGURACIÓN INTERNA DEL GRID TABLE
-                     (SmartTable genera las columnas desde anotaciones CDS;
-                      aquí configuramos comportamiento del grid interno)
-                     -------------------------------------------------------- -->
-                <comp:customizeConfig>
-                    <table:Column
-                        id="colEstado"
-                        width="8rem"
-                        label="Estado"
-                        autoResizable="true">
+                <table:columns>
+
+                    <table:Column width="6rem" label="Tipo DTE" autoResizable="true">
+                        <table:template><Text text="{TipoDte}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="7rem" label="Folio" autoResizable="true">
+                        <table:template><Text text="{Folio}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="10rem" label="Sociedad" autoResizable="true">
+                        <table:template><Text text="{Sociedad}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="12rem" label="RUT Proveedor" autoResizable="true">
+                        <table:template><Text text="{Proveedor}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="18rem" label="Proveedor" autoResizable="true">
+                        <table:template><Text text="{NombreProveedor}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="14rem" label="Estado" autoResizable="true">
                         <table:template>
                             <ObjectStatus
                                 text="{path: 'Estado', formatter: '.formatter.estadoText'}"
                                 state="{path: 'Criticality', formatter: '.formatter.criticalityToState'}"
-                                icon="{path: 'Criticality', formatter: '.formatter.criticalityToIcon'}"
-                                inverted="false"/>
+                                icon="{path: 'Criticality', formatter: '.formatter.criticalityToIcon'}"/>
                         </table:template>
                     </table:Column>
-                    <table:Column
-                        id="colDiasPend"
-                        width="7rem"
-                        label="Días Pend."
-                        autoResizable="true">
+
+                    <table:Column width="10rem" label="Fecha Documento" autoResizable="true" hAlign="End">
+                        <table:template><Text text="{path: 'FechaDocumento', type: 'sap.ui.model.odata.type.Date'}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="10rem" label="Recepción SII" autoResizable="true" hAlign="End">
+                        <table:template><Text text="{path: 'FechaRecepcionSii', type: 'sap.ui.model.odata.type.Date'}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="9rem" label="Fecha Venc." autoResizable="true" hAlign="End">
+                        <table:template><Text text="{path: 'FechaVencimiento', type: 'sap.ui.model.odata.type.Date'}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="7rem" label="Días Pend." autoResizable="true" hAlign="End">
                         <table:template>
                             <ObjectStatus
                                 text="{DiasPendientes}"
-                                state="{path: 'CriticalityDias', formatter: '.formatter.criticalityToState'}"
-                                icon="{path: 'CriticalityDias', formatter: '.formatter.criticalityToIcon'}"
-                                inverted="false"/>
+                                state="{path: 'Criticality', formatter: '.formatter.criticalityToState'}"/>
                         </table:template>
                     </table:Column>
-                </comp:customizeConfig>
 
-            </comp:SmartTable>
+                    <table:Column width="8rem" label="Moneda" autoResizable="true" hAlign="End">
+                        <table:template><Text text="{Moneda}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="10rem" label="Monto Neto" autoResizable="true" hAlign="End">
+                        <table:template>
+                            <Text text="{path: 'MontoNeto', type: 'sap.ui.model.odata.type.Decimal', formatOptions: {groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2}}"/>
+                        </table:template>
+                    </table:Column>
+
+                    <table:Column width="10rem" label="Total DTE" autoResizable="true" hAlign="End">
+                        <table:template>
+                            <Text text="{path: 'TotalDocumento', type: 'sap.ui.model.odata.type.Decimal', formatOptions: {groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2}}"/>
+                        </table:template>
+                    </table:Column>
+
+                    <table:Column width="10rem" label="OC" autoResizable="true">
+                        <table:template><Text text="{OrdenCompra}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="10rem" label="HES" autoResizable="true">
+                        <table:template><Text text="{HojaEntradaServicio}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="10rem" label="EM" autoResizable="true">
+                        <table:template><Text text="{EntradaMercancia}"/></table:template>
+                    </table:Column>
+
+                    <table:Column width="12rem" label="Doc. Factura SAP" autoResizable="true">
+                        <table:template><Text text="{DocumentoFacturaSap}"/></table:template>
+                    </table:Column>
+
+                </table:columns>
+
+            </table:Table>
         </f:content>
 
     </f:DynamicPage>

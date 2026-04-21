@@ -1,75 +1,21 @@
-*"* use this source file for the definition and implementation of
-*"* local helper classes, interface definitions and type
-*"* temporary local helper classes (prefixed with LTY_, LCL_, LIF_, LST_)
-
-"##############################################################################
-" LOCAL HANDLER — Acciones, Determinaciones, Validaciones, Feature/Auth control
-"##############################################################################
 CLASS lhc_dtemonitor DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
-
-    "--------------------------------------------------------------------------
-    " Acciones
-    "--------------------------------------------------------------------------
-    METHODS reprocesar
-      FOR ACTION DteMonitor~Reprocesar
-      IMPORTING keys FOR DteMonitor~Reprocesar result.
-
-    METHODS rechazar
-      FOR ACTION DteMonitor~Rechazar
-      IMPORTING keys FOR DteMonitor~Rechazar result.
-
-    METHODS indicar_doc_referencia
-      FOR ACTION DteMonitor~IndicarDocReferencia
-      IMPORTING keys FOR DteMonitor~IndicarDocReferencia result.
-
-    METHODS indicar_posiciones
-      FOR ACTION DteMonitor~IndicarPosiciones
-      IMPORTING keys FOR DteMonitor~IndicarPosiciones result.
-
-    "--------------------------------------------------------------------------
-    " Determinaciones
-    "--------------------------------------------------------------------------
-    METHODS set_dias_pendientes
-      FOR DETERMINATION DteMonitor~SetDiasPendientes
-      IMPORTING keys FOR DteMonitor.
-
-    METHODS crear_historial
-      FOR DETERMINATION DteMonitor~CrearHistorial
-      IMPORTING keys FOR DteMonitor.
-
-    "--------------------------------------------------------------------------
-    " Validaciones
-    "--------------------------------------------------------------------------
-    METHODS validate_doc_referencia
-      FOR VALIDATION DteMonitor~ValidateDocReferencia
-      IMPORTING keys FOR DteMonitor.
-
-    "--------------------------------------------------------------------------
-    " Feature control
-    "--------------------------------------------------------------------------
-    METHODS get_instance_features
-      FOR INSTANCE FEATURES OF DteMonitor
-      IMPORTING keys REQUEST requested_features
-      RESULT result.
-
-    "--------------------------------------------------------------------------
-    " Authorization
-    "--------------------------------------------------------------------------
-    METHODS get_instance_authorizations
-      FOR INSTANCE AUTHORIZATION OF DteMonitor
-      IMPORTING keys REQUEST requested_authorizations
-      RESULT result.
-
-ENDCLASS.
-
-"##############################################################################
-" LOCAL SAVER
-"##############################################################################
-CLASS lsc_zi_dte_monitor DEFINITION INHERITING FROM cl_abap_behavior_saver.
-  PROTECTED SECTION.
-    METHODS finalize          REDEFINITION.
-    METHODS check_before_save REDEFINITION.
-    METHODS save              REDEFINITION.
-    METHODS cleanup           REDEFINITION.
+    METHODS get_instance_features FOR INSTANCE FEATURES
+      IMPORTING keys REQUEST requested_features FOR DteMonitor RESULT result.
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR DteMonitor RESULT result.
+    METHODS reprocesar FOR MODIFY
+      IMPORTING keys FOR ACTION DteMonitor~Reprocesar RESULT result.
+    METHODS rechazar FOR MODIFY
+      IMPORTING keys FOR ACTION DteMonitor~Rechazar RESULT result.
+    METHODS indicar_doc_referencia FOR MODIFY
+      IMPORTING keys FOR ACTION DteMonitor~IndicarDocReferencia RESULT result.
+    METHODS indicar_posiciones FOR MODIFY
+      IMPORTING keys FOR ACTION DteMonitor~IndicarPosiciones RESULT result.
+    METHODS set_dias_pendientes FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR DteMonitor~SetDiasPendientes.
+    METHODS crear_historial FOR DETERMINE ON SAVE
+      IMPORTING keys FOR DteMonitor~CrearHistorial.
+    METHODS validate_doc_referencia FOR VALIDATE ON SAVE
+      IMPORTING keys FOR DteMonitor~ValidateDocReferencia.
 ENDCLASS.

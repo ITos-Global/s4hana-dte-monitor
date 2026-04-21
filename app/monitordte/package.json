@@ -5,11 +5,13 @@
   "private": true,
   "scripts": {
     "start": "fiori run --open index.html",
+    "start-local": "dotenv -- fiori run --config ui5-local.yaml --open index.html",
     "build": "ui5 build --clean-dest",
     "lint": "eslint webapp"
   },
   "devDependencies": {
     "@sap/ux-ui5-tooling": "^1",
-    "@ui5/cli": "^3"
+    "@ui5/cli": "^4",
+    "dotenv-cli": "^7"
   }
 }

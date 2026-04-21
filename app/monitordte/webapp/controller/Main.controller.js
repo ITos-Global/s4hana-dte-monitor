@@ -34,15 +34,52 @@ sap.ui.define([
         // BÚSQUEDA
         // =====================================================================
         onSearch: function () {
-            const oTable = this.byId("monitorTable");
-            oTable.rebindTable(true);
+            const oBinding = this.byId("monitorTable").getBinding("rows");
+            if (!oBinding) return;
+
+            const aFilters = [];
+            const Filter   = sap.ui.model.Filter;
+            const FO       = sap.ui.model.FilterOperator;
+
+            const sSociedad  = this.byId("filterSociedad").getValue();
+            const sTipoDte   = this.byId("filterTipoDte").getValue();
+            const sProveedor = this.byId("filterProveedor").getValue();
+            const sEstado    = this.byId("filterEstado").getSelectedKey();
+            const oFechaDoc  = this.byId("filterFechaDoc");
+            const oFechaRec  = this.byId("filterFechaRecep");
+
+            if (sSociedad)  aFilters.push(new Filter("Sociedad",  FO.Contains, sSociedad));
+            if (sTipoDte)   aFilters.push(new Filter("TipoDte",   FO.EQ,       sTipoDte));
+            if (sProveedor) aFilters.push(new Filter("Proveedor", FO.Contains, sProveedor));
+            if (sEstado)    aFilters.push(new Filter("Estado",    FO.EQ,       sEstado));
+
+            if (oFechaDoc.getDateValue() && oFechaDoc.getSecondDateValue()) {
+                aFilters.push(new Filter("FechaDocumento", FO.BT,
+                    oFechaDoc.getDateValue(), oFechaDoc.getSecondDateValue()));
+            }
+            if (oFechaRec.getDateValue() && oFechaRec.getSecondDateValue()) {
+                aFilters.push(new Filter("FechaRecepcionSii", FO.BT,
+                    oFechaRec.getDateValue(), oFechaRec.getSecondDateValue()));
+            }
+
+            oBinding.filter(aFilters.length ? new Filter({ filters: aFilters, and: true }) : []);
+        },
+
+        onClearFilters: function () {
+            this.byId("filterSociedad").setValue("");
+            this.byId("filterTipoDte").setValue("");
+            this.byId("filterProveedor").setValue("");
+            this.byId("filterEstado").setSelectedKey("");
+            this.byId("filterFechaDoc").setValue("");
+            this.byId("filterFechaRecep").setValue("");
+            this.byId("monitorTable").getBinding("rows").filter([]);
         },
 
         // =====================================================================
         // SELECCIÓN DE FILAS — habilita/deshabilita botones dinámicamente
         // =====================================================================
         onRowSelectionChange: function () {
-            const oInnerTable = this.byId("monitorTable").getTable();
+            const oInnerTable = this.byId("monitorTable");
             const aIndices    = oInnerTable.getSelectedIndices();
             const oBinding    = oInnerTable.getBinding("rows");
 
@@ -406,7 +443,8 @@ sap.ui.define([
             this._resetButtons();
             this._selectedContexts = [];
             this._selectedContext  = null;
-            this.byId("monitorTable").rebindTable(true);
+            const oBinding = this.byId("monitorTable").getBinding("rows");
+            if (oBinding) oBinding.refresh();
         },
 
         _openDocRefDialog: function () {

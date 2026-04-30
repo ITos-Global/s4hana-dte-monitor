@@ -15,7 +15,7 @@ builder:
       afterTask: generateCachebusterInfo
       configuration:
         target:
-          url: https://<tenant>.s4hana.ondemand.com
+          url: https://my419159.s4hana.cloud.sap
           client: "100"
           auth: basic
         app:

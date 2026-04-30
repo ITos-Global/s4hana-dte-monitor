@@ -1,0 +1,125 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:t="sap.ui.table"
+    xmlns:rowmodes="sap.ui.table.rowmodes">
+
+    <Dialog
+        id="montosPendDialog"
+        title="{i18n>montosPendDialogTitle}"
+        contentWidth="780px"
+        contentHeight="420px"
+        draggable="true"
+        resizable="true"
+        afterClose=".onMontosPendDialogClose">
+
+        <content>
+            <MessageStrip
+                text="{i18n>montosPendDialogInfo}"
+                type="Information"
+                showIcon="true"
+                class="sapUiSmallMargin"/>
+
+            <HBox class="sapUiSmallMarginBegin sapUiSmallMarginEnd sapUiTinyMarginBottom"
+                  alignItems="Center"
+                  justifyContent="SpaceBetween">
+                <VBox>
+                    <Label text="{i18n>montosPendOC}" design="Bold"/>
+                    <Text text="{montosPendModel>/ordenCompra}"/>
+                </VBox>
+                <VBox>
+                    <Label text="{i18n>montosPendHES}" design="Bold"/>
+                    <Text text="{montosPendModel>/hojaEntradaServicio}"/>
+                </VBox>
+                <VBox>
+                    <Label text="{i18n>montosPendTotalDte}" design="Bold"/>
+                    <ObjectNumber
+                        number="{
+                            path: 'montosPendModel>/totalDte',
+                            type: 'sap.ui.model.odata.type.Decimal',
+                            formatOptions: { groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2 }
+                        }"
+                        unit="{montosPendModel>/monedaDte}"
+                        emphasized="true"/>
+                </VBox>
+            </HBox>
+
+            <t:Table
+                id="montosPendTable"
+                rows="{montosPendModel>/posiciones}"
+                selectionMode="None"
+                alternateRowColors="true"
+                enableColumnReordering="false"
+                class="sapUiSmallMarginBegin sapUiSmallMarginEnd">
+
+                <t:rowMode>
+                    <rowmodes:Auto minRowCount="5" maxRowCount="10"/>
+                </t:rowMode>
+
+                <t:columns>
+                    <t:Column width="9rem" autoResizable="true">
+                        <Label text="{i18n>colOC}"/>
+                        <t:template>
+                            <Text text="{montosPendModel>PurchaseOrder}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="6rem" hAlign="End" autoResizable="true">
+                        <Label text="{i18n>colPosOC}"/>
+                        <t:template>
+                            <Text text="{montosPendModel>PurchaseOrderItem}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="9rem" autoResizable="true">
+                        <Label text="{i18n>colHES}"/>
+                        <t:template>
+                            <Text text="{montosPendModel>ServiceEntrySheet}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="6rem" hAlign="End" autoResizable="true">
+                        <Label text="{i18n>colPosHES}"/>
+                        <t:template>
+                            <Text text="{montosPendModel>ServiceEntrySheetItem}"/>
+                        </t:template>
+                    </t:Column>
+                    <t:Column width="11rem" hAlign="End" autoResizable="true">
+                        <Label text="{i18n>colMontoPendiente}"/>
+                        <t:template>
+                            <ObjectNumber
+                                number="{
+                                    path: 'montosPendModel>PurchaseOrderAmount',
+                                    type: 'sap.ui.model.odata.type.Decimal',
+                                    formatOptions: { groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2 }
+                                }"
+                                unit="{montosPendModel>DocumentCurrency}"/>
+                        </t:template>
+                    </t:Column>
+                </t:columns>
+
+            </t:Table>
+
+            <HBox justifyContent="End"
+                  class="sapUiSmallMargin">
+                <VBox>
+                    <Label text="{i18n>labelMontoPendTotal}"/>
+                    <ObjectNumber
+                        number="{
+                            path: 'montosPendModel>/totalPendiente',
+                            type: 'sap.ui.model.odata.type.Decimal',
+                            formatOptions: { groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2 }
+                        }"
+                        unit="{montosPendModel>/monedaTotal}"
+                        emphasized="true"
+                        state="Information"/>
+                </VBox>
+            </HBox>
+        </content>
+
+        <buttons>
+            <Button
+                text="{i18n>btnCerrar}"
+                press=".onCloseMontosPend"/>
+        </buttons>
+
+    </Dialog>
+
+</core:FragmentDefinition>

@@ -28,3 +28,10 @@ spec_unpacked/
 app/**/.env
 ui5-local.yaml
 app/**/ui5-local.yaml
+
+# MTA build artifacts
+mta_archives/
+app/app-content/
+app-content/
+deployer/resources/
+app/monitordte/dist/

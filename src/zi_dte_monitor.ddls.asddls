@@ -11,6 +11,7 @@ define root view entity ZI_DTE_MONITOR
   key m.proveedor                   as Proveedor,
 
       m.sociedad                    as Sociedad,
+      m.bukrs_sap                   as BukrsSap,
       m.prov_sap                    as ProveedorSap,
       m.nombre_prov                 as NombreProveedor,
 

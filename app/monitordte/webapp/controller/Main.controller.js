@@ -1,15 +1,21 @@
 sap.ui.define([
     "sap/ui/core/mvc/Controller",
+    "sap/ui/core/Fragment",
     "sap/ui/model/json/JSONModel",
+    "sap/ui/model/Filter",
+    "sap/ui/model/FilterOperator",
     "sap/m/MessageBox",
     "sap/m/MessageToast",
+    "sap/m/SelectDialog",
+    "sap/m/StandardListItem",
     "sap/ui/export/Spreadsheet",
     "sap/ui/export/library",
     "com/fenixgold/dte/monitordte/formatter/formatter"
-], function (Controller, JSONModel, MessageBox, MessageToast, Spreadsheet, exportLibrary, formatter) {
+], function (Controller, Fragment, JSONModel, Filter, FilterOperator, MessageBox, MessageToast, SelectDialog, StandardListItem, Spreadsheet, exportLibrary, formatter) {
     "use strict";
 
     const EdmType = exportLibrary.EdmType;
+    const NS = "com.sap.gateway.srvd.zui_dte_monitor.v0001.";
 
     // Estados que bloquean acciones de reproceso/rechazo
     const ESTADO_BLOQUEADO = ["02", "06"];
@@ -26,39 +32,39 @@ sap.ui.define([
         onInit: function () {
             this._initDocRefModel();
             this._initPosicionesModel();
+            this._initMontosPendModel();
             this._selectedContext = null;
             this._selectedContexts = [];
+            this._motivoResolver = null;
         },
 
         // =====================================================================
-        // BÚSQUEDA
+        // FILTER BAR — search & clear
         // =====================================================================
         onSearch: function () {
             const oBinding = this.byId("monitorTable").getBinding("rows");
             if (!oBinding) return;
 
             const aFilters = [];
-            const Filter   = sap.ui.model.Filter;
-            const FO       = sap.ui.model.FilterOperator;
 
             const sSociedad  = this.byId("filterSociedad").getValue();
-            const sTipoDte   = this.byId("filterTipoDte").getValue();
+            const sTipoDte   = this.byId("filterTipoDte").getSelectedKey();
             const sProveedor = this.byId("filterProveedor").getValue();
             const sEstado    = this.byId("filterEstado").getSelectedKey();
             const oFechaDoc  = this.byId("filterFechaDoc");
             const oFechaRec  = this.byId("filterFechaRecep");
 
-            if (sSociedad)  aFilters.push(new Filter("Sociedad",  FO.Contains, sSociedad));
-            if (sTipoDte)   aFilters.push(new Filter("TipoDte",   FO.EQ,       sTipoDte));
-            if (sProveedor) aFilters.push(new Filter("Proveedor", FO.Contains, sProveedor));
-            if (sEstado)    aFilters.push(new Filter("Estado",    FO.EQ,       sEstado));
+            if (sSociedad)  aFilters.push(new Filter("Sociedad",  FilterOperator.EQ,       sSociedad));
+            if (sTipoDte)   aFilters.push(new Filter("TipoDte",   FilterOperator.EQ,       sTipoDte));
+            if (sProveedor) aFilters.push(new Filter("Proveedor", FilterOperator.Contains, sProveedor));
+            if (sEstado)    aFilters.push(new Filter("Estado",    FilterOperator.EQ,       sEstado));
 
             if (oFechaDoc.getDateValue() && oFechaDoc.getSecondDateValue()) {
-                aFilters.push(new Filter("FechaDocumento", FO.BT,
+                aFilters.push(new Filter("FechaDocumento", FilterOperator.BT,
                     oFechaDoc.getDateValue(), oFechaDoc.getSecondDateValue()));
             }
             if (oFechaRec.getDateValue() && oFechaRec.getSecondDateValue()) {
-                aFilters.push(new Filter("FechaRecepcionSii", FO.BT,
+                aFilters.push(new Filter("FechaRecepcionSii", FilterOperator.BT,
                     oFechaRec.getDateValue(), oFechaRec.getSecondDateValue()));
             }
 
@@ -67,12 +73,108 @@ sap.ui.define([
 
         onClearFilters: function () {
             this.byId("filterSociedad").setValue("");
-            this.byId("filterTipoDte").setValue("");
+            this.byId("filterTipoDte").setSelectedKey("");
             this.byId("filterProveedor").setValue("");
             this.byId("filterEstado").setSelectedKey("");
             this.byId("filterFechaDoc").setValue("");
             this.byId("filterFechaRecep").setValue("");
-            this.byId("monitorTable").getBinding("rows").filter([]);
+            const oBinding = this.byId("monitorTable").getBinding("rows");
+            if (oBinding) oBinding.filter([]);
+        },
+
+        onRefresh: function () {
+            this._refreshTable();
+            MessageToast.show(this._i18n("msgRefrescado"));
+        },
+
+        // =====================================================================
+        // LOG DE PROCESAMIENTO — abre diálogo con el log al click en estado
+        // =====================================================================
+        onMostrarLog: function (oEvent) {
+            const oCtx = oEvent.getSource().getBindingContext();
+            const sLog = oCtx.getProperty("LogProcesamiento") || "(sin log)";
+            const sFolio = oCtx.getProperty("Folio");
+            MessageBox.information(sLog, {
+                title: "Log Procesamiento — Folio " + sFolio,
+                contentWidth: "40rem"
+            });
+        },
+
+        // =====================================================================
+        // VALUE HELPS — SelectDialog vinculado a VH entities del servicio V4
+        // =====================================================================
+        onValueHelpSociedad: function () {
+            this._openVhDialog({
+                entitySet:    "VhSociedad",
+                titleKey:     "filterSociedad",
+                keyField:     "Sociedad",
+                titleField:   "BukrsSap",      // CompanyCode SAP en título
+                descField:    "Nombre",        // Nombre en descripción
+                infoField:    "Sociedad",      // RUT en info
+                targetInput:  "filterSociedad",
+                searchField:  "Nombre"         // búsqueda principal por nombre
+            });
+        },
+
+        onValueHelpProveedor: function () {
+            this._openVhDialog({
+                entitySet:   "VhProveedor",
+                titleKey:    "filterProveedor",
+                keyField:    "Proveedor",
+                titleField:  "NombreProveedor",
+                descField:   "Proveedor",
+                targetInput: "filterProveedor",
+                searchField: "NombreProveedor"
+            });
+        },
+
+        _openVhDialog: function (oConfig) {
+            const oDialog = new SelectDialog({
+                title: this._i18n(oConfig.titleKey),
+                multiSelect: false,
+                growing: true,
+                growingThreshold: 50,
+                items: {
+                    path: "/" + oConfig.entitySet,
+                    template: new StandardListItem({
+                        title:       "{" + oConfig.titleField + "}",
+                        description: oConfig.descField ? "{" + oConfig.descField + "}" : undefined,
+                        info:        oConfig.infoField ? "{" + oConfig.infoField + "}" : undefined
+                    })
+                },
+                confirm: (oEvent) => {
+                    const oSelected = oEvent.getParameter("selectedItem");
+                    if (oSelected) {
+                        const oCtx = oSelected.getBindingContext();
+                        this.byId(oConfig.targetInput).setValue(
+                            oCtx.getProperty(oConfig.keyField)
+                        );
+                    }
+                    oDialog.destroy();
+                },
+                cancel: () => oDialog.destroy(),
+                liveChange: (oEvent) => {
+                    const oBinding = oEvent.getSource().getBinding("items");
+                    if (!oBinding) { return; }
+                    const sValue = oEvent.getParameter("value");
+                    const oFilter = sValue
+                        ? new Filter(oConfig.searchField, FilterOperator.Contains, sValue)
+                        : null;
+                    oBinding.filter(oFilter ? [oFilter] : []);
+                },
+                search: (oEvent) => {
+                    const oBinding = oEvent.getSource().getBinding("items");
+                    if (!oBinding) { return; }
+                    const sValue = oEvent.getParameter("value");
+                    const oFilter = sValue
+                        ? new Filter(oConfig.searchField, FilterOperator.Contains, sValue)
+                        : null;
+                    oBinding.filter(oFilter ? [oFilter] : []);
+                }
+            });
+
+            this.getView().addDependent(oDialog);
+            oDialog.open();
         },
 
         // =====================================================================
@@ -90,7 +192,6 @@ sap.ui.define([
                 return;
             }
 
-            // Recopilar contextos OData V4 de las filas seleccionadas
             this._selectedContexts = aIndices.map(i => oBinding.getContexts()[i]).filter(Boolean);
             this._selectedContext  = this._selectedContexts[0] || null;
 
@@ -104,11 +205,17 @@ sap.ui.define([
             this.byId("btnVerPdf").setEnabled(bSingle);
             this.byId("btnDocRef").setEnabled(bPorRech);
             this.byId("btnPosiciones").setEnabled(bPorRech);
+
+            // Montos pendientes: requiere selección única con OC + HES indicados.
+            const oCtx = this._selectedContext;
+            const bConHes = bSingle && !!oCtx
+                && !!oCtx.getProperty("OrdenCompra")
+                && !!oCtx.getProperty("HojaEntradaServicio");
+            this.byId("btnMontosPend").setEnabled(bConHes);
         },
 
         // =====================================================================
         // ACCIÓN: Reprocesar
-        // Invoca la bound action RAP Reprocesar sobre los registros seleccionados.
         // =====================================================================
         onReprocesar: function () {
             const aCtxs = this._selectedContexts.filter(
@@ -130,7 +237,7 @@ sap.ui.define([
                             aCtxs.map(ctx =>
                                 ctx.requestObject().then(() =>
                                     ctx.getModel().bindContext(
-                                        "Reprocesar(...)",
+                                        NS + "Reprocesar(...)",
                                         ctx
                                     ).execute()
                                 )
@@ -165,16 +272,15 @@ sap.ui.define([
                 onClose: async (sAction) => {
                     if (sAction !== MessageBox.Action.OK) return;
 
-                    // Pedir motivo de rechazo
                     const sMotivo = await this._promptMotivo();
-                    if (sMotivo === null) return; // usuario canceló
+                    if (sMotivo === null) return;
 
                     this._setBusy(true);
                     try {
                         await Promise.all(
                             aCtxs.map(ctx => {
                                 const oActionBinding = ctx.getModel().bindContext(
-                                    "Rechazar(...)", ctx
+                                    NS + "Rechazar(...)", ctx
                                 );
                                 oActionBinding.setParameter("Motivo", sMotivo);
                                 return oActionBinding.execute();
@@ -193,19 +299,17 @@ sap.ui.define([
 
         // =====================================================================
         // ACCIÓN: Indicar Documento de Referencia
-        // Abre el diálogo DocRef con los datos actuales del registro.
         // =====================================================================
         onIndicarDocRef: function () {
             if (!this._selectedContext) return;
 
-            // Pre-poblar con valores existentes en el registro
             const oData = this._selectedContext.getObject();
             this.getView().getModel("docRefModel").setData({
                 OrdenCompra:          oData.OrdenCompra          || "",
                 HojaEntradaServicio:  oData.HojaEntradaServicio  || "",
-                EntradaMercancia:     oData.EntradaMercancia      || "",
-                AnioEntradaMercancia: oData.AnioEntradaMercancia  || "",
-                FolioReferencia:      oData.FolioReferencia       || "",
+                EntradaMercancia:     oData.EntradaMercancia     || "",
+                AnioEntradaMercancia: oData.AnioEntradaMercancia || "",
+                FolioReferencia:      oData.FolioReferencia      || "",
                 isValid:              false
             });
 
@@ -215,7 +319,6 @@ sap.ui.define([
         onDocRefFieldChange: function () {
             const oModel = this.getView().getModel("docRefModel");
             const oData  = oModel.getData();
-            // Al menos uno de los campos de referencia debe estar informado
             const bValid = !!(oData.OrdenCompra || oData.HojaEntradaServicio ||
                               oData.EntradaMercancia || oData.FolioReferencia);
             oModel.setProperty("/isValid", bValid);
@@ -226,7 +329,7 @@ sap.ui.define([
             this._setBusy(true);
             try {
                 const oActionBinding = this._selectedContext.getModel().bindContext(
-                    "IndicarDocReferencia(...)", this._selectedContext
+                    NS + "IndicarDocReferencia(...)", this._selectedContext
                 );
                 oActionBinding.setParameter("OrdenCompra",          oData.OrdenCompra);
                 oActionBinding.setParameter("HojaEntradaServicio",  oData.HojaEntradaServicio);
@@ -244,12 +347,11 @@ sap.ui.define([
             }
         },
 
-        onCancelDocRef:    function () { this._closeDocRefDialog(); },
+        onCancelDocRef:      function () { this._closeDocRefDialog(); },
         onDocRefDialogClose: function () { this._initDocRefModel(); },
 
         // =====================================================================
         // ACCIÓN: Indicar Posiciones
-        // Carga posiciones de la OC/EM desde el backend y abre el diálogo.
         // =====================================================================
         onIndicarPosiciones: async function () {
             if (!this._selectedContext) return;
@@ -257,15 +359,14 @@ sap.ui.define([
             this._setBusy(true);
             try {
                 const oData = this._selectedContext.getObject();
-                // Cargar posiciones de la OC desde el modelo OData
                 const aPosiciones = await this._loadPosiciones(
                     oData.OrdenCompra,
                     oData.EntradaMercancia
                 );
 
                 const oModel = this.getView().getModel("posicionesModel");
-                oModel.setProperty("/posiciones",   aPosiciones);
-                oModel.setProperty("/monedaOC",     oData.Moneda || "CLP");
+                oModel.setProperty("/posiciones",    aPosiciones);
+                oModel.setProperty("/monedaOC",      oData.Moneda || "CLP");
                 oModel.setProperty("/totalFacturar", 0);
 
                 this._openPosicionesDialog();
@@ -277,7 +378,6 @@ sap.ui.define([
         },
 
         onCantidadChange: function () {
-            // Recalcular total cada vez que el usuario cambia una cantidad
             const aPosiciones = this.getView().getModel("posicionesModel")
                                               .getProperty("/posiciones");
             const fTotal = aPosiciones.reduce(
@@ -298,14 +398,11 @@ sap.ui.define([
                 return;
             }
 
-            // Por limitación del BAPI (acción recibe una posición a la vez),
-            // enviamos la primera posición con cantidad confirmada.
-            // Para múltiples posiciones se puede extender con acciones adicionales.
             const oPosicion = aPosiciones[0];
             this._setBusy(true);
             try {
                 const oActionBinding = this._selectedContext.getModel().bindContext(
-                    "IndicarPosiciones(...)", this._selectedContext
+                    NS + "IndicarPosiciones(...)", this._selectedContext
                 );
                 oActionBinding.setParameter("Posicion",         oPosicion.Posicion);
                 oActionBinding.setParameter("Material",         oPosicion.Material);
@@ -330,8 +427,59 @@ sap.ui.define([
         onPosDialogClose:    function () { this._initPosicionesModel(); },
 
         // =====================================================================
+        // ACCIÓN: Ver Montos Pendientes (function bound GetMontosPendientes)
+        // =====================================================================
+        onVerMontosPendientes: async function () {
+            if (!this._selectedContext) return;
+
+            this._setBusy(true);
+            try {
+                const oCtx   = this._selectedContext;
+                const oData  = oCtx.getObject();
+
+                const oOp = oCtx.getModel().bindContext(
+                    NS + "GetMontosPendientes(...)", oCtx
+                );
+                await oOp.execute();
+
+                // El resultado de una function que devuelve [0..*] viene como
+                // colección bajo .value en V4.
+                const oRes = await oOp.getBoundContext().requestObject();
+                const aRows = (oRes && Array.isArray(oRes.value)) ? oRes.value
+                            : Array.isArray(oRes) ? oRes : [];
+
+                const fTotal = aRows.reduce(
+                    (acc, r) => acc + (parseFloat(r.PurchaseOrderAmount) || 0),
+                    0
+                );
+                const sMonedaTotal = aRows.length ? aRows[0].DocumentCurrency : (oData.Moneda || "");
+
+                const oModel = this.getView().getModel("montosPendModel");
+                oModel.setProperty("/posiciones",          aRows);
+                oModel.setProperty("/ordenCompra",         oData.OrdenCompra || "");
+                oModel.setProperty("/hojaEntradaServicio", oData.HojaEntradaServicio || "");
+                oModel.setProperty("/totalDte",            oData.TotalDocumento || 0);
+                oModel.setProperty("/monedaDte",           oData.Moneda || "");
+                oModel.setProperty("/totalPendiente",      fTotal.toFixed(2));
+                oModel.setProperty("/monedaTotal",         sMonedaTotal);
+
+                if (!aRows.length) {
+                    MessageToast.show(this._i18n("msgSinMontosPend"));
+                }
+
+                this._openMontosPendDialog();
+            } catch (oErr) {
+                MessageBox.error(this._getErrorText(oErr));
+            } finally {
+                this._setBusy(false);
+            }
+        },
+
+        onCloseMontosPend:        function () { this._closeMontosPendDialog(); },
+        onMontosPendDialogClose:  function () { this._initMontosPendModel(); },
+
+        // =====================================================================
         // ACCIÓN: Ver PDF
-        // Genera un PDF en el navegador a partir del XML almacenado en el registro.
         // =====================================================================
         onVerPdf: async function () {
             if (!this._selectedContext) return;
@@ -346,12 +494,10 @@ sap.ui.define([
                     return;
                 }
 
-                // Generar HTML desde el XML del DTE y abrir en nueva pestaña
-                const sHtml    = this._xmlDteToHtml(sXmlData, oData);
-                const oBlob    = new Blob([sHtml], { type: "text/html;charset=utf-8" });
-                const sUrl     = URL.createObjectURL(oBlob);
+                const sHtml = this._xmlDteToHtml(sXmlData, oData);
+                const oBlob = new Blob([sHtml], { type: "text/html;charset=utf-8" });
+                const sUrl  = URL.createObjectURL(oBlob);
                 window.open(sUrl, "_blank");
-                // Liberar URL después de un tiempo
                 setTimeout(() => URL.revokeObjectURL(sUrl), 60000);
 
             } catch (oErr) {
@@ -363,32 +509,30 @@ sap.ui.define([
 
         // =====================================================================
         // EXPORT A EXCEL
-        // SmartTable con enableExport="true" lo maneja automáticamente.
-        // Este método se puede usar para exportación personalizada.
         // =====================================================================
         onExportToExcel: function () {
-            const oTable   = this.byId("monitorTable").getTable();
+            const oTable   = this.byId("monitorTable");
             const oBinding = oTable.getBinding("rows");
 
             const aColumns = [
-                { label: "Tipo DTE",          property: "TipoDte",          type: EdmType.String },
-                { label: "Folio",             property: "Folio",            type: EdmType.String },
-                { label: "RUT Proveedor",     property: "Proveedor",        type: EdmType.String },
-                { label: "Nombre Proveedor",  property: "NombreProveedor",  type: EdmType.String },
-                { label: "Sociedad",          property: "Sociedad",         type: EdmType.String },
-                { label: "Estado",            property: "Estado",           type: EdmType.String },
-                { label: "Fecha Documento",   property: "FechaDocumento",   type: EdmType.Date },
-                { label: "Fecha Recep. SII",  property: "FechaRecepcionSii",type: EdmType.Date },
-                { label: "Monto Neto",        property: "MontoNeto",        type: EdmType.Number, scale: 2 },
-                { label: "IVA Recuperable",   property: "IvaRecuperable",   type: EdmType.Number, scale: 2 },
-                { label: "Total DTE",         property: "TotalDocumento",   type: EdmType.Number, scale: 2 },
-                { label: "Moneda",            property: "Moneda",           type: EdmType.String },
-                { label: "OC",               property: "OrdenCompra",      type: EdmType.String },
-                { label: "HES",              property: "HojaEntradaServicio", type: EdmType.String },
-                { label: "EM",               property: "EntradaMercancia",  type: EdmType.String },
-                { label: "Doc. Factura SAP", property: "DocumentoFacturaSap", type: EdmType.String },
-                { label: "Días Pendientes",  property: "DiasPendientes",   type: EdmType.Number, scale: 0 },
-                { label: "Log",             property: "LogProcesamiento",  type: EdmType.String }
+                { label: "Tipo DTE",          property: "TipoDte",             type: EdmType.String },
+                { label: "Folio",             property: "Folio",               type: EdmType.String },
+                { label: "RUT Proveedor",     property: "Proveedor",           type: EdmType.String },
+                { label: "Nombre Proveedor",  property: "NombreProveedor",     type: EdmType.String },
+                { label: "Sociedad",          property: "Sociedad",            type: EdmType.String },
+                { label: "Estado",            property: "Estado",              type: EdmType.String },
+                { label: "Fecha Documento",   property: "FechaDocumento",      type: EdmType.Date },
+                { label: "Fecha Recep. SII",  property: "FechaRecepcionSii",   type: EdmType.Date },
+                { label: "Monto Neto",        property: "MontoNeto",           type: EdmType.Number, scale: 2 },
+                { label: "IVA Recuperable",   property: "IvaRecuperable",      type: EdmType.Number, scale: 2 },
+                { label: "Total DTE",         property: "TotalDocumento",      type: EdmType.Number, scale: 2 },
+                { label: "Moneda",            property: "Moneda",              type: EdmType.String },
+                { label: "OC",                property: "OrdenCompra",         type: EdmType.String },
+                { label: "HES",               property: "HojaEntradaServicio", type: EdmType.String },
+                { label: "EM",                property: "EntradaMercancia",    type: EdmType.String },
+                { label: "Doc. Factura SAP",  property: "DocumentoFacturaSap", type: EdmType.String },
+                { label: "Días Pendientes",   property: "DiasPendientes",      type: EdmType.Number, scale: 0 },
+                { label: "Log",               property: "LogProcesamiento",    type: EdmType.String }
             ];
 
             const oSettings = {
@@ -403,6 +547,53 @@ sap.ui.define([
 
             const oSpreadsheet = new Spreadsheet(oSettings);
             oSpreadsheet.build().finally(() => oSpreadsheet.destroy());
+        },
+
+        // =====================================================================
+        // DIALOGO MOTIVO DE RECHAZO (fragment)
+        // =====================================================================
+        onMotivoConfirm: function () {
+            const oInput = Fragment.byId(this.getView().getId(), "motivoInput");
+            const sMotivo = oInput.getValue();
+            this._closeMotivoDialog();
+            if (this._motivoResolver) {
+                this._motivoResolver(sMotivo || this._i18n("defaultMotivo"));
+                this._motivoResolver = null;
+            }
+        },
+
+        onMotivoCancel: function () {
+            this._closeMotivoDialog();
+            if (this._motivoResolver) {
+                this._motivoResolver(null);
+                this._motivoResolver = null;
+            }
+        },
+
+        _promptMotivo: function () {
+            return new Promise(resolve => {
+                this._motivoResolver = resolve;
+                if (!this._pMotivoDialog) {
+                    this._pMotivoDialog = Fragment.load({
+                        id: this.getView().getId(),
+                        name: "com.fenixgold.dte.monitordte.view.MotivoRechazo",
+                        controller: this
+                    }).then(oDialog => {
+                        this.getView().addDependent(oDialog);
+                        return oDialog;
+                    });
+                }
+                this._pMotivoDialog.then(oDialog => {
+                    Fragment.byId(this.getView().getId(), "motivoInput").setValue("");
+                    oDialog.open();
+                });
+            });
+        },
+
+        _closeMotivoDialog: function () {
+            if (this._pMotivoDialog) {
+                this._pMotivoDialog.then(oDialog => oDialog.close());
+            }
         },
 
         // =====================================================================
@@ -430,8 +621,21 @@ sap.ui.define([
             this.getView().setModel(oModel, "posicionesModel");
         },
 
+        _initMontosPendModel: function () {
+            const oModel = new JSONModel({
+                posiciones:          [],
+                ordenCompra:         "",
+                hojaEntradaServicio: "",
+                totalDte:            0,
+                monedaDte:           "",
+                totalPendiente:      "0.00",
+                monedaTotal:         ""
+            });
+            this.getView().setModel(oModel, "montosPendModel");
+        },
+
         _resetButtons: function () {
-            ["btnReprocesar","btnRechazar","btnVerPdf","btnDocRef","btnPosiciones"]
+            ["btnReprocesar","btnRechazar","btnVerPdf","btnDocRef","btnPosiciones","btnMontosPend"]
                 .forEach(id => this.byId(id).setEnabled(false));
         },
 
@@ -477,19 +681,27 @@ sap.ui.define([
             }
         },
 
+        _openMontosPendDialog: function () {
+            if (!this._oMontosPendDialog) {
+                this._oMontosPendDialog = this.loadFragment({
+                    name: "com.fenixgold.dte.monitordte.view.MontosPendientes"
+                });
+            }
+            this._oMontosPendDialog.then(dlg => dlg.open());
+        },
+
+        _closeMontosPendDialog: function () {
+            if (this._oMontosPendDialog) {
+                this._oMontosPendDialog.then(dlg => dlg.close());
+            }
+        },
+
         /** Carga posiciones de la OC/EM desde el backend via OData */
         _loadPosiciones: async function (sOC, sEM) {
-            const oModel = this.getView().getModel();
-
-            // Leer posiciones de la OC desde EKPO via OData estándar
-            // (se asume que el service binding expone una entidad de PO items
-            //  o se usa un FM custom. Aquí simulamos con datos de la OC)
             let aPosiciones = [];
 
             if (sOC) {
-                // En implementación real: leer vía OData estándar de S/4HANA
-                // o añadir una entidad custom al service binding
-                // Placeholder: devolver estructura vacía para completar en Sprint 4
+                // Placeholder: a completar en Sprint 4 con entidad custom o OData estándar
                 aPosiciones = [
                     {
                         Posicion:         "00010",
@@ -507,41 +719,6 @@ sap.ui.define([
             }
 
             return aPosiciones;
-        },
-
-        /** Pide el motivo de rechazo en un diálogo simple */
-        _promptMotivo: function () {
-            return new Promise(resolve => {
-                const oDialog = new sap.m.Dialog({
-                    title: this._i18n("dialogMotivoTitle"),
-                    content: [
-                        new sap.m.TextArea("motivoInput", {
-                            placeholder: this._i18n("placeholderMotivo"),
-                            rows: 3,
-                            width: "100%"
-                        })
-                    ],
-                    beginButton: new sap.m.Button({
-                        type: "Reject",
-                        text: this._i18n("btnRechazar"),
-                        press: () => {
-                            const sMotivo = sap.ui.getCore().byId("motivoInput").getValue();
-                            oDialog.close();
-                            oDialog.destroy();
-                            resolve(sMotivo || this._i18n("defaultMotivo"));
-                        }
-                    }),
-                    endButton: new sap.m.Button({
-                        text: this._i18n("btnCancelar"),
-                        press: () => {
-                            oDialog.close();
-                            oDialog.destroy();
-                            resolve(null);
-                        }
-                    })
-                });
-                oDialog.open();
-            });
         },
 
         /** Genera HTML para visualizar el DTE como documento (para PDF) */

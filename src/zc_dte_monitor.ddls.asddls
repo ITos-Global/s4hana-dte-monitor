@@ -16,6 +16,15 @@ define root view entity ZC_DTE_MONITOR
       @UI.lineItem:       [{ position: 10, label: 'Tipo DTE' }]
       @UI.selectionField: [{ position: 10 }]
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 10 }]
+      @Consumption.valueHelpDefinition: [{
+        entity: { name: 'ZVH_DTE_TIPO_DTE', element: 'TipoDte' },
+        additionalBinding: [{
+          localElement: 'TipoDte',
+          element:      'TipoDteText',
+          usage: #RESULT
+        }],
+        label: 'Tipo DTE'
+      }]
   key TipoDte,
 
       @UI.lineItem:       [{ position: 20, label: 'Folio' }]
@@ -25,12 +34,33 @@ define root view entity ZC_DTE_MONITOR
       @UI.lineItem:       [{ position: 30, label: 'RUT Proveedor' }]
       @UI.selectionField: [{ position: 20 }]
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 30 }]
+      @Consumption.valueHelpDefinition: [{
+        entity: { name: 'ZVH_DTE_PROVEEDOR', element: 'Proveedor' },
+        additionalBinding: [{
+          localElement: 'NombreProveedor',
+          element:      'NombreProveedor',
+          usage: #RESULT
+        }],
+        label: 'Proveedor'
+      }]
   key Proveedor,
 
-      @UI.lineItem:       [{ position: 40, label: 'Sociedad' }]
+      @UI.lineItem:       [{ position: 40, label: 'RUT Sociedad' }]
       @UI.selectionField: [{ position: 30 }]
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 40 }]
+      @Consumption.valueHelpDefinition: [{
+        entity: { name: 'ZVH_DTE_SOCIEDAD', element: 'Sociedad' },
+        additionalBinding: [{
+          localElement: 'BukrsSap',
+          element:      'BukrsSap',
+          usage:        #RESULT
+        }],
+        label: 'Sociedad'
+      }]
       Sociedad,
+
+      @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 45 }]
+      BukrsSap,
 
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 50 }]
       ProveedorSap,
@@ -47,6 +77,15 @@ define root view entity ZC_DTE_MONITOR
       }]
       @UI.selectionField: [{ position: 40 }]
       @UI.fieldGroup:     [{ qualifier: 'GeneralData', position: 70 }]
+      @Consumption.valueHelpDefinition: [{
+        entity: { name: 'ZVH_DTE_ESTADO', element: 'Estado' },
+        additionalBinding: [{
+          localElement: 'Estado',
+          element:      'EstadoText',
+          usage: #RESULT
+        }],
+        label: 'Estado DTE'
+      }]
       Estado,
 
       Criticality,
@@ -137,10 +176,10 @@ define root view entity ZC_DTE_MONITOR
       UsuarioModificacion,
 
       @UI.lineItem: [
-        { type: #FOR_ACTION, dataAction: 'Reprocesar',           label: 'Reprocesar',       position: 10 },
-        { type: #FOR_ACTION, dataAction: 'Rechazar',             label: 'Rechazar',          position: 20 },
-        { type: #FOR_ACTION, dataAction: 'IndicarDocReferencia', label: 'Indicar Doc. Ref.', position: 30 },
-        { type: #FOR_ACTION, dataAction: 'IndicarPosiciones',    label: 'Indicar Posiciones',position: 40 }
+        { type: #FOR_ACTION, dataAction: 'Reprocesar',           label: 'Reprocesar',        position: 10 },
+        { type: #FOR_ACTION, dataAction: 'Rechazar',             label: 'Rechazar',           position: 20 },
+        { type: #FOR_ACTION, dataAction: 'IndicarDocReferencia', label: 'Indicar Doc. Ref.',  position: 30 },
+        { type: #FOR_ACTION, dataAction: 'IndicarPosiciones',    label: 'Indicar Posiciones', position: 40 }
       ]
 
       _Historial: redirected to composition child ZC_DTE_MONITOR_H

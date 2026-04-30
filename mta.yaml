@@ -5,13 +5,21 @@ description: Monitor DTE Proveedor - Fenix Gold / Lince SA
 parameters:
   enable-parallel-deployments: true
 
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm install --prefix app/monitordte --prefer-offline
+
 # ==============================================================================
 # MODULES
 # ==============================================================================
 modules:
 
   # ----------------------------------------------------------------------------
-  # SAPUI5 Application (HTML5 module)
+  # SAPUI5 App — ejecuta `ui5 build` y produce dist/.
+  # No se despliega directamente a CF; el deployer toma su dist/ y lo sube
+  # al servicio html5-apps-repo (app-host).
   # ----------------------------------------------------------------------------
   - name: dte-monitor-app
     type: html5
@@ -19,60 +27,44 @@ modules:
     build-parameters:
       builder: custom
       commands:
-        - npm ci
-        - npm run build
+        - npm run build:cf
+      build-result: ../app-content
       supported-platforms: []
-    requires:
-      - name: dte-monitor-html5-repo-host
 
   # ----------------------------------------------------------------------------
-  # Destination Content (configura destino hacia S/4HANA en BTP)
+  # HTML5 Application Deployer
+  # Empaqueta el contenido de dte-monitor-app/dist y lo sube al app-host.
+  # Lo sirve el Managed Approuter (provisto por Build Work Zone / Launchpad).
   # ----------------------------------------------------------------------------
-  - name: dte-monitor-destination-content
+  - name: dte-monitor-deployer
     type: com.sap.application.content
+    path: deployer
     requires:
-      - name: dte-monitor-destination-service
+      - name: dte-monitor-html5-repo-host
         parameters:
           content-target: true
-      - name: dte-monitor-html5-repo-host
-        parameters:
-          service-key:
-            name: dte-monitor-html5-key
       - name: dte-monitor-xsuaa
-        parameters:
-          service-key:
-            name: dte-monitor-xsuaa-key
-    parameters:
-      content:
-        instance:
-          destinations:
-            - Name: dte-monitor-html5-repo
-              ServiceInstanceName: dte-monitor-html5-repo-host
-              ServiceKeyName: dte-monitor-html5-key
-              app-guid: "${app-guid}"
-              forwardAuthToken: true
-          existing_destinations_policy: update
     build-parameters:
-      no-source: true
+      build-result: resources
+      requires:
+        - name: dte-monitor-app
+          artifacts:
+            - '*'
+          target-path: resources/
 
 # ==============================================================================
-# RESOURCES (BTP services)
+# RESOURCES
 # ==============================================================================
 resources:
 
-  # HTML5 Application Repository — host (almacena la app)
+  # HTML5 Apps Repository — depósito del contenido estático (HTML/JS/CSS)
   - name: dte-monitor-html5-repo-host
     type: org.cloudfoundry.managed-service
     parameters:
       service: html5-apps-repo
       service-plan: app-host
-
-  # HTML5 Application Repository — runtime (sirve la app al browser)
-  - name: dte-monitor-html5-repo-runtime
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: html5-apps-repo
-      service-plan: app-runtime
+      config:
+        sizeLimit: 4
 
   # XSUAA — autenticación OAuth2 / SAML
   - name: dte-monitor-xsuaa
@@ -92,7 +84,6 @@ resources:
       service: destination
       service-plan: lite
       config:
-        HTML5Runtime_enabled: true
         init_data:
           instance:
             existing_destinations_policy: update
@@ -102,8 +93,8 @@ resources:
                 Type: HTTP
                 Authentication: SAMLAssertion
                 ProxyType: Internet
-                # URL: reemplazar con el URL real del tenant S/4HANA
-                URL: https://<tenant>.s4hana.ondemand.com
+                URL: https://my419159.s4hana.cloud.sap
                 nameIdFormat: urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
-                HTML5.DynamicDestination: true
                 WebIDEUsage: odata_gen,odata_abap,dev_abap
+                HTML5.DynamicDestination: true
+                HTML5.Timeout: "60000"

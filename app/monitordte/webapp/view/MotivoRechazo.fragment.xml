@@ -1,0 +1,44 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core">
+
+    <Dialog
+        id="motivoDialog"
+        title="{i18n>dialogMotivoTitle}"
+        contentWidth="480px"
+        draggable="true"
+        resizable="true"
+        type="Message">
+
+        <content>
+            <MessageStrip
+                text="{i18n>msgMotivoInfo}"
+                type="Warning"
+                showIcon="true"
+                class="sapUiSmallMargin"/>
+
+            <TextArea
+                id="motivoInput"
+                placeholder="{i18n>placeholderMotivo}"
+                rows="4"
+                width="100%"
+                maxLength="200"
+                showExceededText="true"
+                class="sapUiSmallMarginBegin sapUiSmallMarginEnd sapUiSmallMarginBottom"/>
+        </content>
+
+        <beginButton>
+            <Button
+                type="Reject"
+                text="{i18n>btnRechazar}"
+                press=".onMotivoConfirm"/>
+        </beginButton>
+        <endButton>
+            <Button
+                text="{i18n>btnCancelar}"
+                press=".onMotivoCancel"/>
+        </endButton>
+
+    </Dialog>
+
+</core:FragmentDefinition>

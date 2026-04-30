@@ -5,6 +5,42 @@ CLASS zcl_dte_processor DEFINITION
 
   PUBLIC SECTION.
 
+    " Tipos de DTE permitidos según especificación funcional
+    CONSTANTS:
+      BEGIN OF gc_tipo_dte_permitido,
+        factura_afecta TYPE numc3 VALUE '033',
+        factura_exenta TYPE numc3 VALUE '034',
+        factura_compra TYPE numc3 VALUE '046',
+        nota_debito    TYPE numc3 VALUE '056',
+        nota_credito   TYPE numc3 VALUE '061',
+      END OF gc_tipo_dte_permitido.
+
+    CLASS-METHODS is_tipo_dte_permitido
+      IMPORTING iv_tipo_dte    TYPE numc3
+      RETURNING VALUE(rv_ok)   TYPE abap_bool.
+
+    " Estructura pública con campos clave extraídos del XML del DTE.
+    " Usada por el ingestor para crear el registro inicial en la tabla.
+    TYPES: BEGIN OF ty_dte_meta,
+             tipo_dte      TYPE numc3,
+             folio         TYPE char20,
+             rut_emisor    TYPE char12,
+             rut_receptor  TYPE char12,
+             fecha_emision TYPE dats,
+             moneda        TYPE waers,
+             monto_neto    TYPE p LENGTH 15 DECIMALS 2,
+             monto_exento  TYPE p LENGTH 15 DECIMALS 2,
+             iva           TYPE p LENGTH 15 DECIMALS 2,
+             iec           TYPE p LENGTH 15 DECIMALS 2,
+             iva_retenido  TYPE p LENGTH 15 DECIMALS 2,
+             monto_total   TYPE p LENGTH 15 DECIMALS 2,
+           END OF ty_dte_meta.
+
+    METHODS extract_keys
+      IMPORTING iv_xml         TYPE string
+      RETURNING VALUE(rs_meta) TYPE ty_dte_meta
+      RAISING   cx_abap_invalid_value.
+
     TYPES: BEGIN OF ty_posicion,
              posicion TYPE ebelp,
              material TYPE matnr,
@@ -13,32 +49,59 @@ CLASS zcl_dte_processor DEFINITION
            END OF ty_posicion.
     TYPES tt_posiciones TYPE STANDARD TABLE OF ty_posicion WITH DEFAULT KEY.
 
+    " Resultado por posición para GetMontosPendientes (function bound).
+    TYPES: BEGIN OF ty_pos_pendiente,
+             purchase_order           TYPE ebeln,
+             purchase_order_item      TYPE ebelp,
+             service_entry_sheet      TYPE char10,
+             service_entry_sheet_item TYPE numc5,
+             purchase_order_amount    TYPE p LENGTH 13 DECIMALS 2,
+             document_currency        TYPE waers,
+           END OF ty_pos_pendiente.
+    TYPES tt_pos_pendiente TYPE STANDARD TABLE OF ty_pos_pendiente WITH DEFAULT KEY.
+
+    " Lectura del monto pendiente por posición HES desde I_PurchaseOrderHistoryAPI01.
+    " No se admite parcialidad de facturación de la HES, por lo que se devuelven
+    " las posiciones HES tal cual sin descontar facturas previas.
+    " TODO: descontar HES ya facturadas y validar anulación cuando se implemente
+    "       la verificación de I_SupplierInvoice.IsReversed.
+    METHODS get_pendiente_hes
+      IMPORTING iv_oc           TYPE ebeln
+                iv_hes          TYPE char10
+      RETURNING VALUE(rt_pos)   TYPE tt_pos_pendiente.
+
     METHODS process_dte
       IMPORTING
-        iv_tipo_dte  TYPE zdte_monitor-tipo_dte
-        iv_folio     TYPE zdte_monitor-folio
-        iv_proveedor TYPE zdte_monitor-proveedor
-        iv_sociedad  TYPE zdte_monitor-sociedad
-        iv_xml_data  TYPE string
+        iv_tipo_dte    TYPE zdte_monitor-tipo_dte
+        iv_folio       TYPE zdte_monitor-folio
+        iv_proveedor   TYPE zdte_monitor-proveedor
+        iv_sociedad    TYPE zdte_monitor-sociedad   " RUT receptor
+        iv_xml_data    TYPE string
       EXPORTING
-        ev_estado    TYPE zdte_monitor-estado
-        ev_log       TYPE string
-        ev_doc_fact  TYPE zdte_monitor-doc_fact
-        ev_year_fact TYPE zdte_monitor-year_fact.
+        ev_estado      TYPE zdte_monitor-estado
+        ev_log         TYPE string
+        ev_bukrs       TYPE zdte_monitor-bukrs_sap
+        ev_prov_sap    TYPE zdte_monitor-prov_sap
+        ev_year_em     TYPE zdte_monitor-year_em
+        ev_doc_fact    TYPE zdte_monitor-doc_fact
+        ev_year_fact   TYPE zdte_monitor-year_fact.
 
     METHODS process_dte_with_positions
       IMPORTING
-        iv_tipo_dte   TYPE zdte_monitor-tipo_dte
-        iv_folio      TYPE zdte_monitor-folio
-        iv_proveedor  TYPE zdte_monitor-proveedor
-        iv_sociedad   TYPE zdte_monitor-sociedad
-        iv_xml_data   TYPE string
-        it_posiciones TYPE tt_posiciones
+        iv_tipo_dte    TYPE zdte_monitor-tipo_dte
+        iv_folio       TYPE zdte_monitor-folio
+        iv_proveedor   TYPE zdte_monitor-proveedor
+        iv_sociedad    TYPE zdte_monitor-sociedad   " RUT receptor
+        iv_xml_data    TYPE string
+        it_posiciones  TYPE tt_posiciones
       EXPORTING
-        ev_estado     TYPE zdte_monitor-estado
-        ev_log        TYPE string
-        ev_doc_fact   TYPE zdte_monitor-doc_fact
-        ev_year_fact  TYPE zdte_monitor-year_fact.
+        ev_estado      TYPE zdte_monitor-estado
+        ev_log         TYPE string
+        ev_bukrs       TYPE zdte_monitor-bukrs_sap
+        ev_prov_sap    TYPE zdte_monitor-prov_sap
+        ev_year_em     TYPE zdte_monitor-year_em
+        ev_doc_fact    TYPE zdte_monitor-doc_fact
+        ev_year_fact   TYPE zdte_monitor-year_fact.
 
   PRIVATE SECTION.
 
@@ -81,51 +144,59 @@ CLASS zcl_dte_processor DEFINITION
       RETURNING VALUE(rv_rut) TYPE string.
 
     METHODS validate_referencia_xml
-      IMPORTING is_dte      TYPE ty_dte_xml
-      EXPORTING ev_ok       TYPE abap_bool
-                ev_mensaje  TYPE string.
+      IMPORTING is_dte         TYPE ty_dte_xml
+                iv_supplier    TYPE lifnr
+      EXPORTING ev_ok          TYPE abap_bool
+                ev_mensaje     TYPE string.
 
-    METHODS validate_doc_sap
-      IMPORTING is_dte      TYPE ty_dte_xml
-                iv_sociedad TYPE bukrs
-      EXPORTING ev_ok       TYPE abap_bool
-                ev_mensaje  TYPE string.
+    METHODS validate_oc
+      IMPORTING is_dte         TYPE ty_dte_xml
+                iv_bukrs       TYPE bukrs
+                iv_supplier    TYPE lifnr
+      EXPORTING ev_ok          TYPE abap_bool
+                ev_mensaje     TYPE string.
 
-    METHODS validate_hes_oc
-      IMPORTING is_dte      TYPE ty_dte_xml
-      EXPORTING ev_ok       TYPE abap_bool
-                ev_mensaje  TYPE string.
+    METHODS validate_em
+      IMPORTING is_dte         TYPE ty_dte_xml
+      EXPORTING ev_ok          TYPE abap_bool
+                ev_mensaje     TYPE string
+                ev_year_em     TYPE gjahr.
+
+    METHODS validate_hes
+      IMPORTING is_dte         TYPE ty_dte_xml
+      EXPORTING ev_ok          TYPE abap_bool
+                ev_mensaje     TYPE string.
 
     METHODS validate_sociedad
-      IMPORTING is_dte      TYPE ty_dte_xml
-                iv_sociedad TYPE bukrs
-      EXPORTING ev_ok       TYPE abap_bool
-                ev_mensaje  TYPE string.
+      IMPORTING iv_rut_sociedad TYPE zdte_monitor-sociedad
+      EXPORTING ev_ok           TYPE abap_bool
+                ev_mensaje      TYPE string
+                ev_bukrs        TYPE bukrs.
 
     METHODS validate_proveedor
-      IMPORTING is_dte      TYPE ty_dte_xml
-                iv_sociedad TYPE bukrs
-      EXPORTING ev_ok       TYPE abap_bool
-                ev_mensaje  TYPE string.
+      IMPORTING iv_rut_proveedor TYPE zdte_monitor-proveedor
+      EXPORTING ev_ok            TYPE abap_bool
+                ev_mensaje       TYPE string
+                ev_supplier      TYPE lifnr.
+
+    METHODS is_servicios_generales
+      IMPORTING iv_supplier   TYPE lifnr
+      RETURNING VALUE(rv_ok)  TYPE abap_bool.
 
     METHODS validate_monto
       IMPORTING is_dte      TYPE ty_dte_xml
-                iv_sociedad TYPE bukrs
+                iv_bukrs    TYPE bukrs
       EXPORTING ev_ok       TYPE abap_bool
                 ev_mensaje  TYPE string.
 
     METHODS contabilizar
       IMPORTING is_dte        TYPE ty_dte_xml
-                iv_sociedad   TYPE bukrs
+                iv_bukrs      TYPE bukrs
                 it_posiciones TYPE tt_posiciones OPTIONAL
       EXPORTING ev_doc_fact   TYPE belnr_d
                 ev_year_fact  TYPE gjahr
                 ev_ok         TYPE abap_bool
                 ev_mensaje    TYPE string.
-
-    METHODS get_rut_sociedad
-      IMPORTING iv_sociedad    TYPE bukrs
-      RETURNING VALUE(rv_rut)  TYPE string.
 
     METHODS get_rut_proveedor
       IMPORTING iv_lifnr       TYPE lifnr
@@ -133,7 +204,7 @@ CLASS zcl_dte_processor DEFINITION
 
     METHODS get_monto_pendiente
       IMPORTING is_dte              TYPE ty_dte_xml
-                iv_sociedad         TYPE bukrs
+                iv_bukrs            TYPE bukrs
       RETURNING VALUE(rv_monto_clp) TYPE wrbtr.
 
     METHODS get_tipo_cambio
@@ -152,8 +223,18 @@ CLASS zcl_dte_processor IMPLEMENTATION.
   METHOD process_dte.
     ev_estado    = '05'.
     ev_log       = ''.
+    ev_bukrs     = ''.
+    ev_prov_sap  = ''.
+    ev_year_em   = ''.
     ev_doc_fact  = ''.
     ev_year_fact = ''.
+
+    " 0) Tipo DTE permitido
+    IF is_tipo_dte_permitido( iv_tipo_dte ) = abap_false.
+      ev_estado = '04'.
+      ev_log    = |Tipo de DTE { iv_tipo_dte } no permitido. Tipos válidos: 33, 34, 46, 56, 61.|.
+      RETURN.
+    ENDIF.
 
     DATA ls_dte TYPE ty_dte_xml.
     TRY.
@@ -167,61 +248,66 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     DATA lv_ok  TYPE abap_bool.
     DATA lv_msg TYPE string.
 
-    validate_referencia_xml(
-      EXPORTING is_dte    = ls_dte
-      IMPORTING ev_ok     = lv_ok
-                ev_mensaje = lv_msg ).
-    IF lv_ok = abap_false.
-      ev_estado = '04'. ev_log = lv_msg. RETURN.
-    ENDIF.
-
-    validate_doc_sap(
-      EXPORTING is_dte     = ls_dte
-                iv_sociedad = iv_sociedad
-      IMPORTING ev_ok      = lv_ok
-                ev_mensaje  = lv_msg ).
-    IF lv_ok = abap_false.
-      ev_estado = '04'. ev_log = lv_msg. RETURN.
-    ENDIF.
-
-    validate_hes_oc(
-      EXPORTING is_dte    = ls_dte
-      IMPORTING ev_ok     = lv_ok
-                ev_mensaje = lv_msg ).
-    IF lv_ok = abap_false.
-      ev_estado = '04'. ev_log = lv_msg. RETURN.
-    ENDIF.
-
+    " 1) Sociedad: RUT receptor → CompanyCode
     validate_sociedad(
-      EXPORTING is_dte     = ls_dte
-                iv_sociedad = iv_sociedad
-      IMPORTING ev_ok      = lv_ok
-                ev_mensaje  = lv_msg ).
-    IF lv_ok = abap_false.
-      ev_estado = '04'. ev_log = lv_msg. RETURN.
-    ENDIF.
+      EXPORTING iv_rut_sociedad = iv_sociedad
+      IMPORTING ev_ok           = lv_ok
+                ev_mensaje      = lv_msg
+                ev_bukrs        = ev_bukrs ).
+    IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
+    " 2) Proveedor: RUT → Supplier
     validate_proveedor(
-      EXPORTING is_dte     = ls_dte
-                iv_sociedad = iv_sociedad
-      IMPORTING ev_ok      = lv_ok
-                ev_mensaje  = lv_msg ).
-    IF lv_ok = abap_false.
-      ev_estado = '04'. ev_log = lv_msg. RETURN.
-    ENDIF.
+      EXPORTING iv_rut_proveedor = iv_proveedor
+      IMPORTING ev_ok            = lv_ok
+                ev_mensaje       = lv_msg
+                ev_supplier      = ev_prov_sap ).
+    IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
+    " 3) Existencia de docs de referencia (con fallback servicios generales)
+    validate_referencia_xml(
+      EXPORTING is_dte      = ls_dte
+                iv_supplier = ev_prov_sap
+      IMPORTING ev_ok       = lv_ok
+                ev_mensaje  = lv_msg ).
+    IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
+
+    " 4) Validación OC (existe / sociedad / proveedor / autorizada)
+    validate_oc(
+      EXPORTING is_dte      = ls_dte
+                iv_bukrs    = ev_bukrs
+                iv_supplier = ev_prov_sap
+      IMPORTING ev_ok       = lv_ok
+                ev_mensaje  = lv_msg ).
+    IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
+
+    " 5) Validación EM (existe + asociada a OC); captura YEAR_EM
+    validate_em(
+      EXPORTING is_dte     = ls_dte
+      IMPORTING ev_ok      = lv_ok
+                ev_mensaje = lv_msg
+                ev_year_em = ev_year_em ).
+    IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
+
+    " 6) Validación HES (existe + asociada a OC + aprobada)
+    validate_hes(
+      EXPORTING is_dte     = ls_dte
+      IMPORTING ev_ok      = lv_ok
+                ev_mensaje = lv_msg ).
+    IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
+
+    " 7) Validación de monto (saldo pendiente vs. tolerancia)
     validate_monto(
-      EXPORTING is_dte     = ls_dte
-                iv_sociedad = iv_sociedad
-      IMPORTING ev_ok      = lv_ok
-                ev_mensaje  = lv_msg ).
-    IF lv_ok = abap_false.
-      ev_estado = '04'. ev_log = lv_msg. RETURN.
-    ENDIF.
+      EXPORTING is_dte    = ls_dte
+                iv_bukrs  = ev_bukrs
+      IMPORTING ev_ok     = lv_ok
+                ev_mensaje = lv_msg ).
+    IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
+    " 8) Contabilización
     contabilizar(
       EXPORTING is_dte       = ls_dte
-                iv_sociedad  = iv_sociedad
+                iv_bukrs     = ev_bukrs
       IMPORTING ev_doc_fact  = ev_doc_fact
                 ev_year_fact = ev_year_fact
                 ev_ok        = lv_ok
@@ -234,8 +320,17 @@ CLASS zcl_dte_processor IMPLEMENTATION.
   METHOD process_dte_with_positions.
     ev_estado    = '05'.
     ev_log       = ''.
+    ev_bukrs     = ''.
+    ev_prov_sap  = ''.
+    ev_year_em   = ''.
     ev_doc_fact  = ''.
     ev_year_fact = ''.
+
+    IF is_tipo_dte_permitido( iv_tipo_dte ) = abap_false.
+      ev_estado = '04'.
+      ev_log    = |Tipo de DTE { iv_tipo_dte } no permitido. Tipos válidos: 33, 34, 46, 56, 61.|.
+      RETURN.
+    ENDIF.
 
     DATA ls_dte TYPE ty_dte_xml.
     TRY.
@@ -249,24 +344,33 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     DATA lv_ok  TYPE abap_bool.
     DATA lv_msg TYPE string.
 
-    validate_referencia_xml( EXPORTING is_dte = ls_dte IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
+    validate_sociedad( EXPORTING iv_rut_sociedad  = iv_sociedad
+                       IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ev_bukrs = ev_bukrs ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
-    validate_doc_sap( EXPORTING is_dte = ls_dte iv_sociedad = iv_sociedad IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
+    validate_proveedor( EXPORTING iv_rut_proveedor = iv_proveedor
+                        IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ev_supplier = ev_prov_sap ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
-    validate_hes_oc( EXPORTING is_dte = ls_dte IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
+    validate_referencia_xml( EXPORTING is_dte = ls_dte iv_supplier = ev_prov_sap
+                             IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
-    validate_sociedad( EXPORTING is_dte = ls_dte iv_sociedad = iv_sociedad IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
+    validate_oc( EXPORTING is_dte = ls_dte iv_bukrs = ev_bukrs iv_supplier = ev_prov_sap
+                 IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
-    validate_proveedor( EXPORTING is_dte = ls_dte iv_sociedad = iv_sociedad IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
+    validate_em( EXPORTING is_dte = ls_dte
+                 IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ev_year_em = ev_year_em ).
+    IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
+
+    validate_hes( EXPORTING is_dte = ls_dte
+                  IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
     contabilizar(
       EXPORTING is_dte        = ls_dte
-                iv_sociedad   = iv_sociedad
+                iv_bukrs      = ev_bukrs
                 it_posiciones = it_posiciones
       IMPORTING ev_doc_fact   = ev_doc_fact
                 ev_year_fact  = ev_year_fact
@@ -394,172 +498,46 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     rv_rut = condense( rv_rut ).
   ENDMETHOD.
 
-  METHOD validate_referencia_xml.
-    ev_ok = abap_false.
-
-    " Verificar si el proveedor está configurado como servicios generales
-    DATA(lv_es_serv_gen) = abap_false.
-    SELECT SINGLE @abap_true
-      FROM zdte_config
-      WHERE parametro = @( |PROV_SERV_{ is_dte-rut_emisor }| )
-      INTO @DATA(lv_prov_config).
-    IF sy-subrc = 0.
-      lv_es_serv_gen = abap_true.
-    ENDIF.
-
-    IF lv_es_serv_gen = abap_true.
-      ev_ok      = abap_true.
-      ev_mensaje = 'Proveedor de servicios generales: omite validación de referencia'.
-      RETURN.
-    ENDIF.
-
-    IF is_dte-tipo_dte = 56 OR is_dte-tipo_dte = 55.
-      IF is_dte-folio_ref IS INITIAL AND is_dte-oc_ref IS INITIAL.
-        ev_ok      = abap_false.
-        ev_mensaje = |DTE tipo { is_dte-tipo_dte } sin referencia a factura ni OC. Sujeto a rechazo.|.
-        RETURN.
-      ENDIF.
-      ev_ok = abap_true.
-      RETURN.
-    ENDIF.
-
-    IF is_dte-tiene_ref = abap_false OR
-       ( is_dte-oc_ref IS INITIAL AND
-         is_dte-hes_ref IS INITIAL AND
-         is_dte-em_ref  IS INITIAL ).
-      ev_ok      = abap_false.
-      ev_mensaje = 'El DTE no contiene documentos de referencia (OC/HES/EM) en <Referencia>. Sujeto a rechazo.'.
-      RETURN.
-    ENDIF.
-
-    ev_ok      = abap_true.
-    ev_mensaje = ''.
+  METHOD extract_keys.
+    " Reutiliza parse_xml y mapea a la estructura pública de meta.
+    DATA(ls_dte) = parse_xml( iv_xml ).
+    rs_meta = VALUE #(
+      tipo_dte      = ls_dte-tipo_dte
+      folio         = ls_dte-folio
+      rut_emisor    = ls_dte-rut_emisor
+      rut_receptor  = ls_dte-rut_receptor
+      fecha_emision = ls_dte-fecha_emision
+      moneda        = ls_dte-moneda
+      monto_neto    = ls_dte-monto_neto
+      monto_exento  = ls_dte-monto_exento
+      iva           = ls_dte-iva
+      iec           = ls_dte-iec
+      iva_retenido  = ls_dte-iva_retenido
+      monto_total   = ls_dte-monto_total ).
   ENDMETHOD.
 
-  METHOD validate_doc_sap.
-    ev_ok = abap_false.
-
-    " Validar OC → I_PurchaseOrderAPI01
-    IF is_dte-oc_ref IS NOT INITIAL.
-      SELECT SINGLE PurchaseOrder, CompanyCode
-        FROM I_PurchaseOrderAPI01
-        WHERE PurchaseOrder = @is_dte-oc_ref
-        INTO @DATA(ls_po).
-
-      IF sy-subrc <> 0.
-        ev_ok      = abap_false.
-        ev_mensaje = |OC { is_dte-oc_ref } no existe en SAP.|.
-        RETURN.
-      ENDIF.
-
-      IF ls_po-CompanyCode <> iv_sociedad.
-        ev_ok      = abap_false.
-        ev_mensaje = |OC { is_dte-oc_ref } pertenece a la sociedad { ls_po-CompanyCode }, no a { iv_sociedad }.|.
-        RETURN.
-      ENDIF.
-    ENDIF.
-
-    " Validar HES → I_ServiceEntrySheet (solo existencia; campo de borrado varía por release)
-    IF is_dte-hes_ref IS NOT INITIAL.
-      SELECT SINGLE @abap_true
-        FROM I_ServiceEntrySheetAPI01
-        WHERE ServiceEntrySheet = @is_dte-hes_ref
-        INTO @DATA(lv_ses_exists).
-
-      IF sy-subrc <> 0.
-        ev_ok      = abap_false.
-        ev_mensaje = |HES { is_dte-hes_ref } no existe en SAP.|.
-        RETURN.
-      ENDIF.
-    ENDIF.
-
-    " Validar EM → I_MaterialDocumentHeader_2
-    IF is_dte-em_ref IS NOT INITIAL.
-      DATA(lv_gjahr_em) = CONV gjahr( sy-datum(4) ).
-      SELECT SINGLE MaterialDocument
-        FROM I_MaterialDocumentHeader_2
-        WHERE MaterialDocument     = @is_dte-em_ref
-          AND MaterialDocumentYear = @lv_gjahr_em
-        INTO @DATA(lv_mblnr).
-
-      IF sy-subrc <> 0.
-        lv_gjahr_em = CONV gjahr( sy-datum(4) - 1 ).
-        SELECT SINGLE MaterialDocument
-          FROM I_MaterialDocumentHeader_2
-          WHERE MaterialDocument     = @is_dte-em_ref
-            AND MaterialDocumentYear = @lv_gjahr_em
-          INTO @lv_mblnr.
-
-        IF sy-subrc <> 0.
-          ev_ok      = abap_false.
-          ev_mensaje = |EM { is_dte-em_ref } no existe en SAP.|.
-          RETURN.
-        ENDIF.
-      ENDIF.
-    ENDIF.
-
-    ev_ok      = abap_true.
-    ev_mensaje = ''.
-  ENDMETHOD.
-
-  METHOD validate_hes_oc.
-    ev_ok = abap_false.
-
-    IF is_dte-oc_ref IS INITIAL.
-      ev_ok = abap_true. RETURN.
-    ENDIF.
-
-    " Validar HES → OC via I_ServiceEntrySheet (tiene campo PurchaseOrder directo)
-    IF is_dte-hes_ref IS NOT INITIAL.
-      SELECT SINGLE @abap_true
-        FROM I_ServiceEntrySheetAPI01
-        WHERE ServiceEntrySheet = @is_dte-hes_ref
-          AND PurchaseOrder     = @is_dte-oc_ref
-        INTO @DATA(lv_hes_oc).
-
-      IF sy-subrc <> 0 OR lv_hes_oc <> abap_true.
-        ev_ok      = abap_false.
-        ev_mensaje = |HES { is_dte-hes_ref } no corresponde a la OC { is_dte-oc_ref }.|.
-        RETURN.
-      ENDIF.
-    ENDIF.
-
-    " Validar EM → OC via I_MaterialDocumentItem_2
-    IF is_dte-em_ref IS NOT INITIAL.
-      SELECT SINGLE @abap_true
-        FROM I_MaterialDocumentItem_2
-        WHERE MaterialDocument = @is_dte-em_ref
-          AND PurchaseOrder    = @is_dte-oc_ref
-        INTO @DATA(lv_em_oc).
-
-      IF sy-subrc <> 0 OR lv_em_oc <> abap_true.
-        ev_ok      = abap_false.
-        ev_mensaje = |EM { is_dte-em_ref } no corresponde a la OC { is_dte-oc_ref }.|.
-        RETURN.
-      ENDIF.
-    ENDIF.
-
-    ev_ok      = abap_true.
-    ev_mensaje = ''.
+  METHOD is_tipo_dte_permitido.
+    rv_ok = xsdbool(
+      iv_tipo_dte = gc_tipo_dte_permitido-factura_afecta OR
+      iv_tipo_dte = gc_tipo_dte_permitido-factura_exenta OR
+      iv_tipo_dte = gc_tipo_dte_permitido-factura_compra OR
+      iv_tipo_dte = gc_tipo_dte_permitido-nota_debito    OR
+      iv_tipo_dte = gc_tipo_dte_permitido-nota_credito ).
   ENDMETHOD.
 
   METHOD validate_sociedad.
-    ev_ok = abap_false.
+    " Resuelve RUT receptor (iv_rut_sociedad) → CompanyCode SAP via I_AddlCompanyCodeInformation
+    ev_ok    = abap_false.
+    ev_bukrs = ''.
 
-    DATA(lv_rut_sociedad) = get_rut_sociedad( iv_sociedad ).
+    SELECT SINGLE CompanyCode
+      FROM I_AddlCompanyCodeInformation
+      WHERE CompanyCodeParameterType  = 'TAXNR'
+        AND CompanyCodeParameterValue = @iv_rut_sociedad
+      INTO @ev_bukrs.
 
-    IF lv_rut_sociedad IS INITIAL.
-      ev_ok      = abap_false.
-      ev_mensaje = |No se pudo determinar el RUT de la sociedad { iv_sociedad }. Configure TaxNumber2 en I_CompanyCode.|.
-      RETURN.
-    ENDIF.
-
-    DATA(lv_rut_recep_norm) = normalize_rut( CONV string( is_dte-rut_receptor ) ).
-    DATA(lv_rut_soc_norm)   = normalize_rut( lv_rut_sociedad ).
-
-    IF lv_rut_recep_norm <> lv_rut_soc_norm.
-      ev_ok      = abap_false.
-      ev_mensaje = |RUT receptor del DTE ({ is_dte-rut_receptor }) no coincide con RUT sociedad { iv_sociedad } ({ lv_rut_sociedad }).|.
+    IF sy-subrc <> 0.
+      ev_mensaje = 'Sociedad del DTE no existe en SAP'.
       RETURN.
     ENDIF.
 
@@ -568,64 +546,218 @@ CLASS zcl_dte_processor IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD validate_proveedor.
+    " Resuelve RUT proveedor → Supplier SAP via I_Supplier (TaxNumber1)
+    ev_ok       = abap_false.
+    ev_supplier = ''.
+
+    SELECT SINGLE Supplier
+      FROM I_Supplier
+      WHERE TaxNumber1 = @iv_rut_proveedor
+      INTO @ev_supplier.
+
+    IF sy-subrc <> 0.
+      ev_mensaje = 'Proveedor del DTE no existe en SAP'.
+      RETURN.
+    ENDIF.
+
+    ev_ok      = abap_true.
+    ev_mensaje = ''.
+  ENDMETHOD.
+
+  METHOD is_servicios_generales.
+    " Verifica si el proveedor está marcado con la característica PROV_IMPUTACION
+    " en la clasificación de proveedores (ClassType 010, ClfnObjectTable LFA1).
+    rv_ok = abap_false.
+
+    SELECT SINGLE CharcInternalID
+      FROM I_ClfnCharacteristic
+      WHERE Characteristic = 'PROV_IMPUTACION'
+      INTO @DATA(lv_charc_id).
+
+    IF sy-subrc <> 0 OR lv_charc_id IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT SINGLE @abap_true
+      FROM I_ClfnObjectCharcValue
+      WHERE ClfnObjectID    = @iv_supplier
+        AND ClfnObjectTable = 'LFA1'
+        AND CharcInternalID = @lv_charc_id
+        AND ClassType       = '010'
+      INTO @DATA(lv_match).
+
+    rv_ok = COND #( WHEN sy-subrc = 0 THEN abap_true ELSE abap_false ).
+  ENDMETHOD.
+
+  METHOD validate_referencia_xml.
+    " Lógica del spec:
+    "  - Si OC ∧ (HES ∨ EM): ok
+    "  - Si faltan, evaluar si proveedor es de servicios generales → ok
+    "  - Caso contrario, rechazar con mensaje específico.
     ev_ok = abap_false.
 
-    DATA lv_lifnr_oc TYPE lifnr.
+    DATA(lv_oc_ok)  = xsdbool( is_dte-oc_ref  IS NOT INITIAL ).
+    DATA(lv_hes_ok) = xsdbool( is_dte-hes_ref IS NOT INITIAL ).
+    DATA(lv_em_ok)  = xsdbool( is_dte-em_ref  IS NOT INITIAL ).
 
-    IF is_dte-oc_ref IS NOT INITIAL.
-      " OC directa → I_PurchaseOrderAPI01
-      SELECT SINGLE Supplier
-        FROM I_PurchaseOrderAPI01
-        WHERE PurchaseOrder = @is_dte-oc_ref
-        INTO @lv_lifnr_oc.
-
-    ELSEIF is_dte-hes_ref IS NOT INITIAL.
-      " HES → OC via I_ServiceEntrySheet → proveedor
-      DATA lv_ebeln_hes TYPE ebeln.
-      SELECT SINGLE PurchaseOrder
-        FROM I_ServiceEntrySheetAPI01
-        WHERE ServiceEntrySheet = @is_dte-hes_ref
-        INTO @lv_ebeln_hes.
-      IF sy-subrc = 0.
-        SELECT SINGLE Supplier
-          FROM I_PurchaseOrderAPI01
-          WHERE PurchaseOrder = @lv_ebeln_hes
-          INTO @lv_lifnr_oc.
-      ENDIF.
-
-    ELSEIF is_dte-em_ref IS NOT INITIAL.
-      " EM → OC via I_MaterialDocumentItem_2 → proveedor
-      DATA lv_ebeln_em TYPE ebeln.
-      SELECT SINGLE PurchaseOrder
-        FROM I_MaterialDocumentItem_2
-        WHERE MaterialDocument = @is_dte-em_ref
-        INTO @lv_ebeln_em.
-      IF sy-subrc = 0.
-        SELECT SINGLE Supplier
-          FROM I_PurchaseOrderAPI01
-          WHERE PurchaseOrder = @lv_ebeln_em
-          INTO @lv_lifnr_oc.
-      ENDIF.
-    ENDIF.
-
-    IF lv_lifnr_oc IS INITIAL.
-      ev_ok      = abap_false.
-      ev_mensaje = 'No se pudo determinar el proveedor del documento de referencia en SAP.'.
+    IF lv_oc_ok = abap_true AND ( lv_hes_ok = abap_true OR lv_em_ok = abap_true ).
+      ev_ok      = abap_true.
+      ev_mensaje = ''.
       RETURN.
     ENDIF.
 
-    DATA(lv_rut_sap) = normalize_rut( get_rut_proveedor( lv_lifnr_oc ) ).
-    DATA(lv_rut_dte) = normalize_rut( CONV string( is_dte-rut_emisor ) ).
-
-    IF lv_rut_sap IS INITIAL.
-      ev_ok      = abap_false.
-      ev_mensaje = |Proveedor { lv_lifnr_oc } no tiene RUT (TaxNumber1) en I_Supplier.|.
+    " Faltan referencias: ¿es proveedor de servicios generales?
+    IF is_servicios_generales( iv_supplier ) = abap_true.
+      ev_ok      = abap_true.
+      ev_mensaje = 'Proveedor de servicios generales: omite validación de referencia.'.
       RETURN.
     ENDIF.
 
-    IF lv_rut_sap <> lv_rut_dte.
-      ev_ok      = abap_false.
-      ev_mensaje = |RUT emisor DTE ({ is_dte-rut_emisor }) no coincide con proveedor { lv_lifnr_oc } ({ lv_rut_sap }).|.
+    " Mensajes específicos según qué falta
+    IF lv_oc_ok = abap_false AND lv_hes_ok = abap_false AND lv_em_ok = abap_false.
+      ev_mensaje = 'XML no tiene los documentos de referencia OC y HES/EM'.
+    ELSEIF lv_oc_ok = abap_false.
+      ev_mensaje = 'XML no tiene la referencia de la OC'.
+    ELSE.
+      ev_mensaje = 'XML no tiene la referencia de la HES o EM'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_oc.
+    " 4 checks: existe / sociedad / proveedor / autorizada (status 05)
+    ev_ok = abap_false.
+
+    IF is_dte-oc_ref IS INITIAL.
+      ev_ok      = abap_true.
+      ev_mensaje = ''.
+      RETURN.
+    ENDIF.
+
+    " 1) Existe
+    SELECT SINGLE @abap_true
+      FROM I_PurchaseOrderAPI01
+      WHERE PurchaseOrder = @is_dte-oc_ref
+      INTO @DATA(lv_existe).
+    IF sy-subrc <> 0.
+      ev_mensaje = 'OC referencia no existe en SAP'.
+      RETURN.
+    ENDIF.
+
+    " 2) Asociada a la sociedad del DTE
+    SELECT SINGLE @abap_true
+      FROM I_PurchaseOrderAPI01
+      WHERE PurchaseOrder = @is_dte-oc_ref
+        AND CompanyCode   = @iv_bukrs
+      INTO @DATA(lv_soc).
+    IF sy-subrc <> 0.
+      ev_mensaje = 'OC referencia no corresponde la sociedad del DTE'.
+      RETURN.
+    ENDIF.
+
+    " 3) Asociada al proveedor del DTE
+    SELECT SINGLE @abap_true
+      FROM I_PurchaseOrderAPI01
+      WHERE PurchaseOrder = @is_dte-oc_ref
+        AND Supplier      = @iv_supplier
+      INTO @DATA(lv_prov).
+    IF sy-subrc <> 0.
+      ev_mensaje = 'OC referencia no corresponde al proveedor del DTE'.
+      RETURN.
+    ENDIF.
+
+    " 4) Autorizada (PurchasingProcessingStatus = 05)
+    SELECT SINGLE @abap_true
+      FROM I_PurchaseOrderAPI01
+      WHERE PurchaseOrder              = @is_dte-oc_ref
+        AND PurchasingProcessingStatus = '05'
+      INTO @DATA(lv_aprob).
+    IF sy-subrc <> 0.
+      ev_mensaje = 'OC referencia no se encuentra autorizada'.
+      RETURN.
+    ENDIF.
+
+    ev_ok      = abap_true.
+    ev_mensaje = ''.
+  ENDMETHOD.
+
+  METHOD validate_em.
+    " Existencia + asociación a OC vía I_PurchaseOrderHistoryAPI01; captura YEAR_EM
+    ev_ok      = abap_false.
+    ev_year_em = ''.
+
+    IF is_dte-em_ref IS INITIAL.
+      ev_ok      = abap_true.
+      ev_mensaje = ''.
+      RETURN.
+    ENDIF.
+
+    " 1) Existencia (I_MaterialDocumentHeader_2 es la variante C1-released)
+    SELECT SINGLE @abap_true
+      FROM I_MaterialDocumentHeader_2
+      WHERE MaterialDocument = @is_dte-em_ref
+      INTO @DATA(lv_existe).
+    IF sy-subrc <> 0.
+      ev_mensaje = 'EM referencia no existe en SAP'.
+      RETURN.
+    ENDIF.
+
+    " 2) Asociación a OC + captura del año
+    SELECT SINGLE PurchasingHistoryDocumentYear
+      FROM I_PurchaseOrderHistoryAPI01
+      WHERE PurchaseOrder                 = @is_dte-oc_ref
+        AND PurchasingHistoryDocumentType = '1'
+        AND PurchasingHistoryCategory     = 'E'
+        AND PurchasingHistoryDocument     = @is_dte-em_ref
+      INTO @ev_year_em.
+    IF sy-subrc <> 0.
+      ev_mensaje = 'EM de referencia no corresponde a la OC indicada en el DTE'.
+      CLEAR ev_year_em.
+      RETURN.
+    ENDIF.
+
+    ev_ok      = abap_true.
+    ev_mensaje = ''.
+  ENDMETHOD.
+
+  METHOD validate_hes.
+    " Existencia + asociación a OC + aprobada (ApprovalStatus = 30)
+    ev_ok = abap_false.
+
+    IF is_dte-hes_ref IS INITIAL.
+      ev_ok      = abap_true.
+      ev_mensaje = ''.
+      RETURN.
+    ENDIF.
+
+    " 1) Existencia
+    SELECT SINGLE @abap_true
+      FROM I_ServiceEntrySheetAPI01
+      WHERE ServiceEntrySheet = @is_dte-hes_ref
+      INTO @DATA(lv_existe).
+    IF sy-subrc <> 0.
+      ev_mensaje = 'HES referencia no existe en SAP'.
+      RETURN.
+    ENDIF.
+
+    " 2) Asociación a la OC
+    SELECT SINGLE @abap_true
+      FROM I_ServiceEntrySheetAPI01
+      WHERE ServiceEntrySheet = @is_dte-hes_ref
+        AND PurchaseOrder     = @is_dte-oc_ref
+      INTO @DATA(lv_oc).
+    IF sy-subrc <> 0.
+      ev_mensaje = 'HES referencia no corresponde a la OC de referencia'.
+      RETURN.
+    ENDIF.
+
+    " 3) Aprobada (ApprovalStatus = 30)
+    SELECT SINGLE @abap_true
+      FROM I_ServiceEntrySheetAPI01
+      WHERE ServiceEntrySheet = @is_dte-hes_ref
+        AND ApprovalStatus    = '30'
+      INTO @DATA(lv_aprob).
+    IF sy-subrc <> 0.
+      ev_mensaje = 'HES referencia no se encuentra aprobada'.
       RETURN.
     ENDIF.
 
@@ -642,8 +774,8 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     IF lv_tol_clp = 0. lv_tol_clp = 10000. ENDIF.
 
     DATA(lv_monto_pend) = get_monto_pendiente(
-      is_dte      = is_dte
-      iv_sociedad = iv_sociedad ).
+      is_dte    = is_dte
+      iv_bukrs  = iv_bukrs ).
 
     IF lv_monto_pend = 0.
       ev_ok      = abap_false.
@@ -798,7 +930,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
                                                       ELSE abap_false )
               DocumentDate                  = is_dte-fecha_emision
               PostingDate                   = cl_abap_context_info=>get_system_date( )
-              CompanyCode                   = iv_sociedad
+              CompanyCode                   = iv_bukrs
               DocumentCurrency              = lv_moneda
               InvoiceGrossAmount            = CONV rmwwr( is_dte-monto_total )
               TaxIsCalculatedAutomatically  = abap_false
@@ -855,13 +987,6 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     ev_mensaje = |DTE contabilizado: documento { ev_doc_fact } / { ev_year_fact }.|.
   ENDMETHOD.
 
-  METHOD get_rut_sociedad.
-"    SELECT SINGLE TaxNumber2
- "      FROM I_CompanyCode
- "     WHERE CompanyCode = @iv_sociedad
- "     INTO @rv_rut.
-  ENDMETHOD.
-
   METHOD get_rut_proveedor.
     SELECT SINGLE TaxNumber1
       FROM I_Supplier
@@ -869,25 +994,68 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       INTO @rv_rut.
   ENDMETHOD.
 
+  METHOD get_pendiente_hes.
+    " Paso A del spec: posiciones HES en historial de OC.
+    " HES no permite parcialidades → cada posición se devuelve completa.
+    " La verificación de factura ya registrada/anulada queda como TODO.
+    IF iv_oc IS INITIAL OR iv_hes IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT PurchaseOrder,
+           PurchaseOrderItem,
+           PurchasingHistoryDocument,
+           PurchasingHistoryDocumentItem,
+           PurchaseOrderAmount,
+           DocumentCurrency
+      FROM I_PurchaseOrderHistoryAPI01
+      WHERE PurchaseOrder              = @iv_oc
+        AND PurchasingHistoryDocumentType = 'S'
+        AND PurchasingHistoryCategory     = '0'
+        AND PurchasingHistoryDocument     = @iv_hes
+      INTO TABLE @DATA(lt_hes_hist).
+
+    LOOP AT lt_hes_hist INTO DATA(ls_h).
+      APPEND VALUE #(
+        purchase_order           = ls_h-PurchaseOrder
+        purchase_order_item      = ls_h-PurchaseOrderItem
+        service_entry_sheet      = ls_h-PurchasingHistoryDocument
+        service_entry_sheet_item = ls_h-PurchasingHistoryDocumentItem
+        purchase_order_amount    = ls_h-PurchaseOrderAmount
+        document_currency        = ls_h-DocumentCurrency
+      ) TO rt_pos.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD get_monto_pendiente.
 
+    DATA lv_facturado TYPE p LENGTH 15 DECIMALS 2.
+
     IF is_dte-hes_ref IS NOT INITIAL.
-      " Monto total de la HES desde I_ServiceEntrySheet
-      " TODO: verificar campo de importe en I_ServiceEntrySheet del sistema
-      DATA lv_monto_hes TYPE wrbtr.
-      SELECT SUM( NetAmount )
-        FROM I_ServiceEntrySheetItemAPI01
-        WHERE ServiceEntrySheet = @is_dte-hes_ref
-        INTO @lv_monto_hes.
+      " Lectura por posición HES (sin parcialidad).
+      DATA(lt_pos_hes) = get_pendiente_hes(
+        iv_oc  = is_dte-oc_ref
+        iv_hes = is_dte-hes_ref ).
 
-      " Facturas ya contabilizadas contra esta HES → I_SupplierInvoiceItem
-      DATA lv_facturado TYPE p LENGTH 15 DECIMALS 2.
-      SELECT SUM( SupplierInvoiceItemAmount )
-        FROM I_SuplrInvcItemPurOrdRefAPI01
-        WHERE ReferenceDocument = @is_dte-hes_ref
-        INTO @lv_facturado.
+      DATA lv_monto_hes_doc TYPE p LENGTH 15 DECIMALS 2.
+      DATA lv_moneda_hes    TYPE waers.
+      LOOP AT lt_pos_hes INTO DATA(ls_pos_hes).
+        lv_monto_hes_doc = lv_monto_hes_doc + ls_pos_hes-purchase_order_amount.
+        IF lv_moneda_hes IS INITIAL.
+          lv_moneda_hes = ls_pos_hes-document_currency.
+        ENDIF.
+      ENDLOOP.
 
-      rv_monto_clp = lv_monto_hes - lv_facturado.
+      " Convertir a CLP usando la moneda de la HES (no la del DTE).
+      IF lv_moneda_hes IS INITIAL OR lv_moneda_hes = 'CLP'.
+        rv_monto_clp = lv_monto_hes_doc.
+      ELSE.
+        DATA(lv_tc_hes) = get_tipo_cambio(
+          iv_moneda = lv_moneda_hes
+          iv_fecha  = is_dte-fecha_emision ).
+        rv_monto_clp = lv_monto_hes_doc * lv_tc_hes.
+      ENDIF.
+      RETURN.
 
     ELSEIF is_dte-em_ref IS NOT INITIAL.
       " Valor total de la EM desde I_MaterialDocumentItem_2

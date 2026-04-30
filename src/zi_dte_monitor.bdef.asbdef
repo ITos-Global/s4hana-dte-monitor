@@ -10,6 +10,10 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
   create;
   update;
 
+  static factory action IngestFromXml parameter ZS_DTE_INGEST_XML [1];
+
+  static factory action IngestFromSii parameter ZS_DTE_INGEST_SII [1];
+
   action ( features : instance ) Reprocesar
     result [1] $self;
 
@@ -25,8 +29,14 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
     parameter ZS_DTE_POSICION
     result [1] $self;
 
+  function GetMontosPendientes
+    result [0..*] ZS_DTE_MONTO_PEND;
+
   determination SetDiasPendientes on modify
     { field Estado, FechaRecepcionSii; }
+
+  determination AutoProcess on modify
+    { field FechaRecepcionSii; }
 
   determination CrearHistorial on save
     { field Estado; }
@@ -36,15 +46,18 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
 
   association _Historial { create; }
 
-  field ( readonly )
+  field ( readonly : update )
     TipoDte, Folio, Proveedor,
+    XmlData,           " set en create (ingest), readonly luego
+    LogProcesamiento;  " set inicial vacío, lo gestiona el processor
+
+  field ( readonly )
     Criticality,
     DiasPendientes,
+    BukrsSap,
     DocumentoFacturaSap, AnioFacturaSap,
     FechaCreacion, HoraCreacion, UsuarioCreacion,
-    FechaModificacion, UsuarioModificacion,
-    LogProcesamiento,
-    XmlData;
+    FechaModificacion, UsuarioModificacion;
 
   field ( features : instance )
     OrdenCompra,
@@ -53,7 +66,45 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
     AnioEntradaMercancia,
     FolioReferencia;
 
-  mapping for zdte_monitor corresponding;
+  mapping for zdte_monitor
+  {
+    TipoDte              = tipo_dte;
+    Folio                = folio;
+    Proveedor            = proveedor;
+    Sociedad             = sociedad;
+    BukrsSap             = bukrs_sap;
+    ProveedorSap         = prov_sap;
+    NombreProveedor      = nombre_prov;
+    FechaDocumento       = fe_fact;
+    FechaContabilizacion = fe_cont;
+    FechaRecepcionSii    = fe_recep;
+    FechaAceptacion      = fe_acept;
+    FechaVencimiento     = fe_venc;
+    Estado               = estado;
+    Moneda               = waers;
+    MontoNeto            = monto_n;
+    MontoExento          = monto_ex;
+    Iec                  = iec;
+    IvaRecuperable       = iva_rec;
+    IvaNoRecuperable     = iva_nrec;
+    IvaRetenido          = iva_ret;
+    TotalDocumento       = total_doc;
+    DocumentoFacturaSap  = doc_fact;
+    AnioFacturaSap       = year_fact;
+    OrdenCompra          = oc;
+    EntradaMercancia     = em;
+    AnioEntradaMercancia = year_em;
+    HojaEntradaServicio  = hes;
+    FolioReferencia      = folio_ref;
+    XmlData              = xml_data;
+    LogProcesamiento     = log_proc;
+    DiasPendientes       = dias_pend;
+    FechaCreacion        = erdat;
+    HoraCreacion         = erzet;
+    UsuarioCreacion      = ernam;
+    FechaModificacion    = aedat;
+    UsuarioModificacion  = aenam;
+  }
 }
 
 define behavior for ZI_DTE_MONITOR_H alias DteHistorial
@@ -67,5 +118,16 @@ define behavior for ZI_DTE_MONITOR_H alias DteHistorial
 
   association _DteMonitor;
 
-  mapping for zdte_monitor_h corresponding;
+  mapping for zdte_monitor_h
+  {
+    TipoDte        = tipo_dte;
+    Folio          = folio;
+    Proveedor      = proveedor;
+    SeqNo          = seqno;
+    Timestamp      = timestamp;
+    EstadoAnterior = estado_ant;
+    EstadoNuevo    = estado_nuevo;
+    Usuario        = usrname;
+    Descripcion    = texto;
+  }
 }

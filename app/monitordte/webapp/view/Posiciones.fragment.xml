@@ -1,7 +1,8 @@
 <core:FragmentDefinition
     xmlns="sap.m"
     xmlns:core="sap.ui.core"
-    xmlns:t="sap.ui.table">
+    xmlns:t="sap.ui.table"
+    xmlns:rowmodes="sap.ui.table.rowmodes">
 
     <Dialog
         id="posicionesDialog"
@@ -24,11 +25,14 @@
             <t:Table
                 id="posTable"
                 rows="{posicionesModel>/posiciones}"
-                visibleRowCount="8"
                 selectionMode="None"
                 alternateRowColors="true"
                 enableColumnReordering="false"
                 class="sapUiSmallMarginBottom">
+
+                <t:rowMode>
+                    <rowmodes:Fixed rowCount="8"/>
+                </t:rowMode>
 
                 <t:columns>
                     <t:Column width="5rem" autoResizable="true">

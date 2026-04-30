@@ -1,0 +1,48 @@
+{
+  "xsappname": "dte-monitor",
+  "tenant-mode": "dedicated",
+  "description": "Security profile for Monitor DTE Proveedor",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Display",
+      "description": "Visualizar Monitor DTE"
+    },
+    {
+      "name": "$XSAPPNAME.Manage",
+      "description": "Gestionar DTEs (aceptar/rechazar)"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "DTEMonitorViewer",
+      "description": "Solo lectura del Monitor DTE",
+      "scope-references": [
+        "$XSAPPNAME.Display"
+      ]
+    },
+    {
+      "name": "DTEMonitorManager",
+      "description": "Gestión completa del Monitor DTE",
+      "scope-references": [
+        "$XSAPPNAME.Display",
+        "$XSAPPNAME.Manage"
+      ]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "DTEMonitorViewer",
+      "description": "Visor Monitor DTE",
+      "role-template-references": [
+        "$XSAPPNAME.DTEMonitorViewer"
+      ]
+    },
+    {
+      "name": "DTEMonitorManager",
+      "description": "Administrador Monitor DTE",
+      "role-template-references": [
+        "$XSAPPNAME.DTEMonitorManager"
+      ]
+    }
+  ]
+}

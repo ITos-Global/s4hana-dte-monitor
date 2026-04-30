@@ -5,222 +5,355 @@
     xmlns:f="sap.f"
     xmlns:core="sap.ui.core"
     xmlns:table="sap.ui.table"
-    xmlns:unified="sap.ui.unified"
+    xmlns:rowmodes="sap.ui.table.rowmodes"
+    xmlns:fb="sap.ui.comp.filterbar"
+    core:require="{
+        DateType: 'sap/ui/model/odata/type/Date',
+        DecimalType: 'sap/ui/model/odata/type/Decimal'
+    }"
     displayBlock="true">
 
-    <f:DynamicPage id="dynamicPage" headerExpanded="true" toggleHeaderOnTitleClick="false">
+    <f:DynamicPage id="dynamicPage"
+            headerExpanded="true"
+            toggleHeaderOnTitleClick="true"
+            preserveHeaderStateOnScroll="false">
 
         <f:title>
             <f:DynamicPageTitle>
                 <f:heading>
                     <Title text="{i18n>appTitle}" level="H2"/>
                 </f:heading>
+                <f:snappedContent>
+                    <Text text="{i18n>appDescription}"/>
+                </f:snappedContent>
             </f:DynamicPageTitle>
         </f:title>
 
         <!-- ============================================================
-             FILTROS
+             FILTER BAR (Fiori 3.0) con VariantManagement + Search/Clear
              ============================================================ -->
         <f:header>
             <f:DynamicPageHeader pinnable="true">
-                <HBox wrap="Wrap" class="sapUiSmallMarginBegin sapUiSmallMarginEnd sapUiSmallMarginBottom">
+                <fb:FilterBar id="filterBar"
+                        persistencyKey="monitorDteFilters"
+                        useToolbar="true"
+                        showClearOnFB="true"
+                        showGoOnFB="true"
+                        showRestoreOnFB="false"
+                        filterBarExpanded="true"
+                        search=".onSearch"
+                        clear=".onClearFilters">
 
-                    <VBox class="sapUiSmallMarginEnd">
-                        <Label text="Sociedad"/>
-                        <Input id="filterSociedad" width="10rem" placeholder="Ej: 1000"/>
-                    </VBox>
+                    <fb:filterGroupItems>
 
-                    <VBox class="sapUiSmallMarginEnd">
-                        <Label text="Tipo DTE"/>
-                        <Input id="filterTipoDte" width="8rem" placeholder="Ej: 33"/>
-                    </VBox>
+                        <fb:FilterGroupItem name="Sociedad"
+                                groupName="__BASIC"
+                                label="{i18n>filterSociedad}"
+                                visibleInFilterBar="true">
+                            <fb:control>
+                                <Input id="filterSociedad"
+                                        placeholder="{i18n>phSociedad}"
+                                        showValueHelp="true"
+                                        valueHelpRequest=".onValueHelpSociedad"/>
+                            </fb:control>
+                        </fb:FilterGroupItem>
 
-                    <VBox class="sapUiSmallMarginEnd">
-                        <Label text="RUT Proveedor"/>
-                        <Input id="filterProveedor" width="12rem" placeholder="Ej: 76123456-7"/>
-                    </VBox>
+                        <fb:FilterGroupItem name="TipoDte"
+                                groupName="__BASIC"
+                                label="{i18n>filterTipoDte}"
+                                visibleInFilterBar="true">
+                            <fb:control>
+                                <Select id="filterTipoDte" forceSelection="false">
+                                    <core:Item key="" text="{i18n>itemTodos}"/>
+                                    <core:Item key="033" text="033 - {i18n>tipoDte_033}"/>
+                                    <core:Item key="034" text="034 - {i18n>tipoDte_034}"/>
+                                    <core:Item key="046" text="046 - {i18n>tipoDte_046}"/>
+                                    <core:Item key="055" text="055 - {i18n>tipoDte_055}"/>
+                                    <core:Item key="056" text="056 - {i18n>tipoDte_056}"/>
+                                </Select>
+                            </fb:control>
+                        </fb:FilterGroupItem>
 
-                    <VBox class="sapUiSmallMarginEnd">
-                        <Label text="Estado"/>
-                        <Select id="filterEstado" width="12rem">
-                            <core:Item key="" text="Todos"/>
-                            <core:Item key="01" text="01 - Pendiente"/>
-                            <core:Item key="02" text="02 - Contabilizado"/>
-                            <core:Item key="03" text="03 - Rechazado"/>
-                            <core:Item key="04" text="04 - Revisar Doc. Ref."/>
-                            <core:Item key="05" text="05 - Error"/>
-                            <core:Item key="06" text="06 - Anulado"/>
-                        </Select>
-                    </VBox>
+                        <fb:FilterGroupItem name="Proveedor"
+                                groupName="__BASIC"
+                                label="{i18n>filterProveedor}"
+                                visibleInFilterBar="true">
+                            <fb:control>
+                                <Input id="filterProveedor"
+                                        placeholder="{i18n>phProveedor}"
+                                        showValueHelp="true"
+                                        valueHelpRequest=".onValueHelpProveedor"/>
+                            </fb:control>
+                        </fb:FilterGroupItem>
 
-                    <VBox class="sapUiSmallMarginEnd">
-                        <Label text="Fecha Documento"/>
-                        <DateRangeSelection id="filterFechaDoc" displayFormat="dd/MM/yyyy" delimiter="-" width="16rem"/>
-                    </VBox>
+                        <fb:FilterGroupItem name="Estado"
+                                groupName="__BASIC"
+                                label="{i18n>filterEstado}"
+                                visibleInFilterBar="true">
+                            <fb:control>
+                                <Select id="filterEstado" forceSelection="false">
+                                    <core:Item key="" text="{i18n>itemTodos}"/>
+                                    <core:Item key="01" text="01 - {i18n>estado_01}"/>
+                                    <core:Item key="02" text="02 - {i18n>estado_02}"/>
+                                    <core:Item key="03" text="03 - {i18n>estado_03}"/>
+                                    <core:Item key="04" text="04 - {i18n>estado_04}"/>
+                                    <core:Item key="05" text="05 - {i18n>estado_05}"/>
+                                    <core:Item key="06" text="06 - {i18n>estado_06}"/>
+                                </Select>
+                            </fb:control>
+                        </fb:FilterGroupItem>
 
-                    <VBox class="sapUiSmallMarginEnd">
-                        <Label text="Fecha Recepción SII"/>
-                        <DateRangeSelection id="filterFechaRecep" displayFormat="dd/MM/yyyy" delimiter="-" width="16rem"/>
-                    </VBox>
+                        <fb:FilterGroupItem name="FechaDocumento"
+                                groupName="__BASIC"
+                                label="{i18n>filterFechaDoc}"
+                                visibleInFilterBar="true">
+                            <fb:control>
+                                <DateRangeSelection id="filterFechaDoc"
+                                        displayFormat="dd/MM/yyyy"
+                                        delimiter="-"/>
+                            </fb:control>
+                        </fb:FilterGroupItem>
 
-                    <VBox justifyContent="End">
-                        <HBox>
-                            <Button text="{i18n>btnBuscar}" icon="sap-icon://search"
-                                    type="Emphasized" press=".onSearch" class="sapUiSmallMarginEnd"/>
-                            <Button text="{i18n>btnLimpiar}" icon="sap-icon://clear-filter"
-                                    press=".onClearFilters"/>
-                        </HBox>
-                    </VBox>
+                        <fb:FilterGroupItem name="FechaRecepcionSii"
+                                groupName="__BASIC"
+                                label="{i18n>filterFechaRecep}"
+                                visibleInFilterBar="true">
+                            <fb:control>
+                                <DateRangeSelection id="filterFechaRecep"
+                                        displayFormat="dd/MM/yyyy"
+                                        delimiter="-"/>
+                            </fb:control>
+                        </fb:FilterGroupItem>
 
-                </HBox>
+                    </fb:filterGroupItems>
+                </fb:FilterBar>
             </f:DynamicPageHeader>
         </f:header>
 
         <!-- ============================================================
-             TABLA
+             TABLA — sap.ui.table.Table con p13n via column menu
+             (sortProperty + filterProperty activan el menú de columna)
              ============================================================ -->
         <f:content>
             <table:Table
-                id="monitorTable"
-                rows="{
-                    path: '/DteMonitor',
-                    parameters: {
-                        $count: true,
-                        $orderby: 'FechaRecepcionSii desc'
-                    }
-                }"
-                selectionMode="MultiToggle"
-                rowSelectionChange=".onRowSelectionChange"
-                visibleRowCountMode="Auto"
-                minAutoRowCount="10"
-                enableBusyIndicator="true"
-                alternateRowColors="true"
-                class="sapUiSizeCompact">
+                    id="monitorTable"
+                    rows="{
+                        path: '/DteMonitor',
+                        parameters: {
+                            $count: true,
+                            $orderby: 'FechaRecepcionSii desc'
+                        }
+                    }"
+                    selectionMode="MultiToggle"
+                    selectionBehavior="RowSelector"
+                    rowSelectionChange=".onRowSelectionChange"
+                    enableBusyIndicator="true"
+                    enableColumnReordering="true"
+                    enableColumnFreeze="true"
+                    enableCellFilter="true"
+                    alternateRowColors="true"
+                    ariaLabelledBy="tableTitle">
+
+                <table:rowMode>
+                    <rowmodes:Auto minRowCount="10"/>
+                </table:rowMode>
 
                 <table:extension>
                     <OverflowToolbar style="Clear">
-                        <Title text="{i18n>tableTitle}" level="H3"/>
+                        <Title id="tableTitle" text="{i18n>tableTitle}" level="H3"/>
                         <ToolbarSpacer/>
 
                         <Button id="btnReprocesar"
-                            text="{i18n>btnReprocesar}"
-                            icon="sap-icon://refresh"
-                            enabled="false"
-                            press=".onReprocesar"/>
+                                text="{i18n>btnReprocesar}"
+                                tooltip="{i18n>btnReprocesarTooltip}"
+                                icon="sap-icon://refresh"
+                                enabled="false"
+                                press=".onReprocesar"/>
 
                         <Button id="btnVerPdf"
-                            text="{i18n>btnVerPdf}"
-                            icon="sap-icon://pdf-attachment"
-                            enabled="false"
-                            press=".onVerPdf"/>
+                                text="{i18n>btnVerPdf}"
+                                tooltip="{i18n>btnVerPdfTooltip}"
+                                icon="sap-icon://pdf-attachment"
+                                enabled="false"
+                                press=".onVerPdf"/>
 
                         <Button id="btnDocRef"
-                            text="{i18n>btnDocRef}"
-                            icon="sap-icon://add-document"
-                            enabled="false"
-                            press=".onIndicarDocRef"/>
+                                text="{i18n>btnDocRef}"
+                                tooltip="{i18n>btnDocRefTooltip}"
+                                icon="sap-icon://add-document"
+                                enabled="false"
+                                press=".onIndicarDocRef"/>
 
                         <Button id="btnPosiciones"
-                            text="{i18n>btnPosiciones}"
-                            icon="sap-icon://detail-view"
-                            enabled="false"
-                            press=".onIndicarPosiciones"/>
+                                text="{i18n>btnPosiciones}"
+                                tooltip="{i18n>btnPosicionesTooltip}"
+                                icon="sap-icon://detail-view"
+                                enabled="false"
+                                press=".onIndicarPosiciones"/>
+
+                        <Button id="btnMontosPend"
+                                text="{i18n>btnMontosPend}"
+                                tooltip="{i18n>btnMontosPendTooltip}"
+                                icon="sap-icon://money-bills"
+                                enabled="false"
+                                press=".onVerMontosPendientes"/>
 
                         <Button id="btnRechazar"
-                            text="{i18n>btnRechazar}"
-                            icon="sap-icon://decline"
-                            type="Reject"
-                            enabled="false"
-                            press=".onRechazar"/>
+                                text="{i18n>btnRechazar}"
+                                tooltip="{i18n>btnRechazarTooltip}"
+                                icon="sap-icon://decline"
+                                type="Reject"
+                                enabled="false"
+                                press=".onRechazar"/>
 
-                        <Button
-                            text="{i18n>btnExportar}"
-                            icon="sap-icon://excel-attachment"
-                            press=".onExportToExcel"/>
+                        <ToolbarSeparator/>
 
+                        <OverflowToolbarButton
+                                text="{i18n>btnExportar}"
+                                tooltip="{i18n>btnExportar}"
+                                icon="sap-icon://excel-attachment"
+                                press=".onExportToExcel"/>
+
+                        <OverflowToolbarButton
+                                text="{i18n>btnRefrescar}"
+                                tooltip="{i18n>btnRefrescar}"
+                                icon="sap-icon://synchronize"
+                                press=".onRefresh"/>
                     </OverflowToolbar>
                 </table:extension>
 
                 <table:columns>
 
-                    <table:Column width="6rem" label="Tipo DTE" autoResizable="true">
+                    <table:Column width="6rem" autoResizable="true"
+                            sortProperty="TipoDte" filterProperty="TipoDte">
+                        <Label text="{i18n>colTipoDte}"/>
                         <table:template><Text text="{TipoDte}"/></table:template>
                     </table:Column>
 
-                    <table:Column width="7rem" label="Folio" autoResizable="true">
+                    <table:Column width="7rem" autoResizable="true" hAlign="End"
+                            sortProperty="Folio" filterProperty="Folio">
+                        <Label text="{i18n>colFolio}"/>
                         <table:template><Text text="{Folio}"/></table:template>
                     </table:Column>
 
-                    <table:Column width="10rem" label="Sociedad" autoResizable="true">
+                    <table:Column width="8rem" autoResizable="true"
+                            sortProperty="Sociedad" filterProperty="Sociedad">
+                        <Label text="{i18n>colSociedad}"/>
                         <table:template><Text text="{Sociedad}"/></table:template>
                     </table:Column>
 
-                    <table:Column width="12rem" label="RUT Proveedor" autoResizable="true">
+                    <table:Column width="12rem" autoResizable="true"
+                            sortProperty="Proveedor" filterProperty="Proveedor">
+                        <Label text="{i18n>colRutProveedor}"/>
                         <table:template><Text text="{Proveedor}"/></table:template>
                     </table:Column>
 
-                    <table:Column width="18rem" label="Proveedor" autoResizable="true">
-                        <table:template><Text text="{NombreProveedor}"/></table:template>
-                    </table:Column>
-
-                    <table:Column width="14rem" label="Estado" autoResizable="true">
+                    <table:Column width="26rem" minWidth="200" autoResizable="true"
+                            sortProperty="NombreProveedor" filterProperty="NombreProveedor">
+                        <Label text="{i18n>colProveedor}"/>
                         <table:template>
-                            <ObjectStatus
-                                text="{path: 'Estado', formatter: '.formatter.estadoText'}"
-                                state="{path: 'Criticality', formatter: '.formatter.criticalityToState'}"
-                                icon="{path: 'Criticality', formatter: '.formatter.criticalityToIcon'}"/>
+                            <Text text="{NombreProveedor}"
+                                  tooltip="{NombreProveedor}"
+                                  wrapping="false"
+                                  maxLines="1"/>
                         </table:template>
                     </table:Column>
 
-                    <table:Column width="10rem" label="Fecha Documento" autoResizable="true" hAlign="End">
-                        <table:template><Text text="{path: 'FechaDocumento', type: 'sap.ui.model.odata.type.Date'}"/></table:template>
-                    </table:Column>
-
-                    <table:Column width="10rem" label="Recepción SII" autoResizable="true" hAlign="End">
-                        <table:template><Text text="{path: 'FechaRecepcionSii', type: 'sap.ui.model.odata.type.Date'}"/></table:template>
-                    </table:Column>
-
-                    <table:Column width="9rem" label="Fecha Venc." autoResizable="true" hAlign="End">
-                        <table:template><Text text="{path: 'FechaVencimiento', type: 'sap.ui.model.odata.type.Date'}"/></table:template>
-                    </table:Column>
-
-                    <table:Column width="7rem" label="Días Pend." autoResizable="true" hAlign="End">
+                    <table:Column width="14rem" autoResizable="true"
+                            sortProperty="Estado" filterProperty="Estado">
+                        <Label text="{i18n>colEstado}"/>
                         <table:template>
                             <ObjectStatus
-                                text="{DiasPendientes}"
-                                state="{path: 'Criticality', formatter: '.formatter.criticalityToState'}"/>
+                                    text="{path: 'Estado', formatter: '.formatter.estadoText'}"
+                                    state="{path: 'Criticality', formatter: '.formatter.criticalityToState'}"
+                                    icon="{path: 'Criticality', formatter: '.formatter.criticalityToIcon'}"
+                                    active="true"
+                                    press=".onMostrarLog"
+                                    tooltip="{LogProcesamiento}"/>
                         </table:template>
                     </table:Column>
 
-                    <table:Column width="8rem" label="Moneda" autoResizable="true" hAlign="End">
+                    <table:Column width="10rem" autoResizable="true" hAlign="End"
+                            sortProperty="FechaDocumento" filterProperty="FechaDocumento">
+                        <Label text="{i18n>colFechaDoc}"/>
+                        <table:template>
+                            <Text text="{path: 'FechaDocumento', type: 'DateType'}"/>
+                        </table:template>
+                    </table:Column>
+
+                    <table:Column width="10rem" autoResizable="true" hAlign="End"
+                            sortProperty="FechaRecepcionSii" filterProperty="FechaRecepcionSii">
+                        <Label text="{i18n>colFechaRecep}"/>
+                        <table:template>
+                            <Text text="{path: 'FechaRecepcionSii', type: 'DateType'}"/>
+                        </table:template>
+                    </table:Column>
+
+                    <table:Column width="9rem" autoResizable="true" hAlign="End"
+                            sortProperty="FechaVencimiento" filterProperty="FechaVencimiento">
+                        <Label text="{i18n>colFechaVenc}"/>
+                        <table:template>
+                            <Text text="{path: 'FechaVencimiento', type: 'DateType'}"/>
+                        </table:template>
+                    </table:Column>
+
+                    <table:Column width="7rem" autoResizable="true" hAlign="End"
+                            sortProperty="DiasPendientes" filterProperty="DiasPendientes">
+                        <Label text="{i18n>colDiasPend}"/>
+                        <table:template>
+                            <ObjectStatus
+                                    text="{DiasPendientes}"
+                                    state="{path: 'Criticality', formatter: '.formatter.criticalityToState'}"/>
+                        </table:template>
+                    </table:Column>
+
+                    <table:Column width="6rem" autoResizable="true" hAlign="End"
+                            sortProperty="Moneda" filterProperty="Moneda">
+                        <Label text="{i18n>colMoneda}"/>
                         <table:template><Text text="{Moneda}"/></table:template>
                     </table:Column>
 
-                    <table:Column width="10rem" label="Monto Neto" autoResizable="true" hAlign="End">
+                    <table:Column width="10rem" autoResizable="true" hAlign="End"
+                            sortProperty="MontoNeto" filterProperty="MontoNeto">
+                        <Label text="{i18n>colMontoNeto}"/>
                         <table:template>
-                            <Text text="{path: 'MontoNeto', type: 'sap.ui.model.odata.type.Decimal', formatOptions: {groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2}}"/>
+                            <ObjectNumber
+                                    number="{path: 'MontoNeto', type: 'DecimalType', formatOptions: {groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2}}"/>
                         </table:template>
                     </table:Column>
 
-                    <table:Column width="10rem" label="Total DTE" autoResizable="true" hAlign="End">
+                    <table:Column width="10rem" autoResizable="true" hAlign="End"
+                            sortProperty="TotalDocumento" filterProperty="TotalDocumento">
+                        <Label text="{i18n>colTotalDte}"/>
                         <table:template>
-                            <Text text="{path: 'TotalDocumento', type: 'sap.ui.model.odata.type.Decimal', formatOptions: {groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2}}"/>
+                            <ObjectNumber
+                                    number="{path: 'TotalDocumento', type: 'DecimalType', formatOptions: {groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2}}"
+                                    unit="{Moneda}"
+                                    emphasized="true"/>
                         </table:template>
                     </table:Column>
 
-                    <table:Column width="10rem" label="OC" autoResizable="true">
+                    <table:Column width="10rem" autoResizable="true"
+                            sortProperty="OrdenCompra" filterProperty="OrdenCompra">
+                        <Label text="{i18n>colOC}"/>
                         <table:template><Text text="{OrdenCompra}"/></table:template>
                     </table:Column>
 
-                    <table:Column width="10rem" label="HES" autoResizable="true">
+                    <table:Column width="10rem" autoResizable="true"
+                            sortProperty="HojaEntradaServicio" filterProperty="HojaEntradaServicio">
+                        <Label text="{i18n>colHES}"/>
                         <table:template><Text text="{HojaEntradaServicio}"/></table:template>
                     </table:Column>
 
-                    <table:Column width="10rem" label="EM" autoResizable="true">
+                    <table:Column width="10rem" autoResizable="true"
+                            sortProperty="EntradaMercancia" filterProperty="EntradaMercancia">
+                        <Label text="{i18n>colEM}"/>
                         <table:template><Text text="{EntradaMercancia}"/></table:template>
                     </table:Column>
 
-                    <table:Column width="12rem" label="Doc. Factura SAP" autoResizable="true">
+                    <table:Column width="12rem" autoResizable="true"
+                            sortProperty="DocumentoFacturaSap" filterProperty="DocumentoFacturaSap">
+                        <Label text="{i18n>colDocFacturaSap}"/>
                         <table:template><Text text="{DocumentoFacturaSap}"/></table:template>
                     </table:Column>
 

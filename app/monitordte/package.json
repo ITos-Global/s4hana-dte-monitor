@@ -4,14 +4,17 @@
   "description": "Monitor DTE Proveedor",
   "private": true,
   "scripts": {
-    "start": "fiori run --open index.html",
+    "start":       "fiori run --open index.html",
     "start-local": "dotenv -- fiori run --config ui5-local.yaml --open index.html",
-    "build": "ui5 build --clean-dest",
-    "lint": "eslint webapp"
+    "build":       "ui5 build --clean-dest",
+    "build:cf":    "ui5 build --config ui5.yaml --clean-dest && npm run package",
+    "package":     "node -e \"require('fs').mkdirSync('../app-content',{recursive:true})\" && cd dist && bestzip ../../app-content/dte-monitor-app-content.zip *",
+    "lint":        "eslint webapp"
   },
   "devDependencies": {
     "@sap/ux-ui5-tooling": "^1",
     "@ui5/cli": "^4",
+    "bestzip": "^2.2.1",
     "dotenv-cli": "^7"
   }
 }

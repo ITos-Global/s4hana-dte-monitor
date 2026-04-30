@@ -16,6 +16,13 @@ framework:
     - name: sap.ui.unified
     - name: themelib_sap_horizon
       optional: true
+
+builder:
+  resources:
+    excludes:
+      - "/test/**"
+      - "/localService/**"
+
 server:
   customMiddleware:
     - name: fiori-tools-proxy

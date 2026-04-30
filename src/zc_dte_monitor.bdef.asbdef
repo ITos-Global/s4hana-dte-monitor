@@ -1,0 +1,22 @@
+projection;
+strict ( 2 );
+
+define behavior for ZC_DTE_MONITOR alias DteMonitor
+{
+  use create;
+  use update;
+
+  use action Reprocesar;
+  use action Rechazar;
+  use action IndicarDocReferencia;
+  use action IndicarPosiciones;
+
+  use function GetMontosPendientes;
+
+  use association _Historial { create; }
+}
+
+define behavior for ZC_DTE_MONITOR_H alias DteHistorial
+{
+  use association _DteMonitor;
+}

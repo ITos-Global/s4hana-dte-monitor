@@ -52,6 +52,43 @@ modules:
             - '*'
           target-path: resources/
 
+  # ----------------------------------------------------------------------------
+  # Destination Content
+  # Registra las destinations tecnicas que usa el HTML5 runtime / Work Zone
+  # para descubrir y ejecutar la app desde el managed approuter.
+  # El valor sap.cloud.service debe coincidir con manifest.json.
+  # ----------------------------------------------------------------------------
+  - name: dte-monitor-destination-content
+    type: com.sap.application.content
+    requires:
+      - name: dte-monitor-destination-service
+        parameters:
+          content-target: true
+      - name: dte-monitor-html5-repo-host
+        parameters:
+          service-key:
+            name: dte-monitor-html5-repo-host-key
+      - name: dte-monitor-xsuaa
+        parameters:
+          service-key:
+            name: dte-monitor-xsuaa-key
+    parameters:
+      content:
+        instance:
+          destinations:
+            - Name: dte-monitor-html5-repo-host
+              ServiceInstanceName: dte-monitor-html5-repo-host
+              ServiceKeyName: dte-monitor-html5-repo-host-key
+              sap.cloud.service: comfenixgolddtemonitordte
+            - Name: dte-monitor-xsuaa
+              Authentication: OAuth2UserTokenExchange
+              ServiceInstanceName: dte-monitor-xsuaa
+              ServiceKeyName: dte-monitor-xsuaa-key
+              sap.cloud.service: comfenixgolddtemonitordte
+          existing_destinations_policy: update
+    build-parameters:
+      no-source: true
+
 # ==============================================================================
 # RESOURCES
 # ==============================================================================
@@ -77,24 +114,11 @@ resources:
         xsappname: dte-monitor
         tenant-mode: dedicated
 
-  # Destination Service — conectividad hacia S/4HANA Public Edition
+  # Destination Service — conectividad hacia S/4HANA Public Edition.
   - name: dte-monitor-destination-service
     type: org.cloudfoundry.managed-service
     parameters:
       service: destination
       service-plan: lite
       config:
-        init_data:
-          instance:
-            existing_destinations_policy: update
-            destinations:
-              - Name: S4HANA_MONITOR_DEST
-                Description: S/4HANA Public Edition - Monitor DTE
-                Type: HTTP
-                Authentication: SAMLAssertion
-                ProxyType: Internet
-                URL: https://my419159.s4hana.cloud.sap
-                nameIdFormat: urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
-                WebIDEUsage: odata_gen,odata_abap,dev_abap
-                HTML5.DynamicDestination: true
-                HTML5.Timeout: "60000"
+        HTML5Runtime_enabled: true

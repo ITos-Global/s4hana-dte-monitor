@@ -1,16 +1,19 @@
 {
-  "_version": "1.61.0",
+  "_version": "1.73.1",
   "sap.app": {
     "id": "com.fenixgold.dte.monitordte",
     "type": "application",
-    "i18n": "i18n/i18n.properties",
+    "i18n": {
+      "bundleUrl": "i18n/i18n.properties",
+      "supportedLocales": [""]
+    },
     "applicationVersion": { "version": "1.0.0" },
     "title": "{{appTitle}}",
     "description": "{{appDescription}}",
     "resources": "resources.json",
     "dataSources": {
       "mainService": {
-        "uri": "/odata/v4/ZUI_DTE_MONITOR_O4/",
+        "uri": "odata/v4/ZUI_DTE_MONITOR_O4/",
         "type": "OData",
         "settings": {
           "odataVersion": "4.0",
@@ -20,8 +23,8 @@
     },
     "crossNavigation": {
       "inbounds": {
-        "monitor-dte-display": {
-          "semanticObject": "DTEMonitor",
+        "dtemonitor-display": {
+          "semanticObject": "dtemonitor",
           "action": "display",
           "title": "{{appTitle}}",
           "subTitle": "{{appDescription}}",

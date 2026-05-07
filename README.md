@@ -120,7 +120,7 @@ cf deploy mta_archives/dte-monitor_1.0.0.mtar
 
 | Propiedad                | Valor                                        |
 |--------------------------|----------------------------------------------|
-| Name                     | `S4HANA_MONITOR_DEST`                        |
+| Name                     | `ZMONITOR`                                   |
 | Type                     | HTTP                                         |
 | URL                      | `https://<tenant>.s4hana.ondemand.com`       |
 | Authentication           | SAMLAssertion (Principal Propagation)        |

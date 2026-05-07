@@ -32,6 +32,6 @@ server:
         backend:
           - path: /odata/v4/ZUI_DTE_MONITOR_O4
             url: https://<tenant>.s4hana.ondemand.com
-            destination: S4HANA_MONITOR_DEST
+            destination: ZMONITOR
             scp: true
             pathPrefix: /sap/opu/odata4/sap/zui_dte_monitor_o4/srvd/sap/zui_dte_monitor/0001

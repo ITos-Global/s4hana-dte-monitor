@@ -6,7 +6,7 @@
     {
       "source": "^/odata/v4/ZUI_DTE_MONITOR_O4/(.*)$",
       "target": "/sap/opu/odata4/sap/zui_dte_monitor_o4/srvd/sap/zui_dte_monitor/0001/$1",
-      "destination": "S4HANA_MONITOR_DEST",
+      "destination": "ZMONITOR",
       "authenticationType": "xsuaa",
       "csrfProtection": false
     },

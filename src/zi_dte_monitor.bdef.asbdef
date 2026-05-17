@@ -11,10 +11,10 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
   update;
 
   static factory action IngestFromXml parameter ZS_DTE_INGEST_XML [1]
-    result [1] $self;
+    result $self;
 
   static factory action IngestFromSii parameter ZS_DTE_INGEST_SII [1]
-    result [1] $self;
+    result $self;
 
   static action RefrescarMasivo;
 

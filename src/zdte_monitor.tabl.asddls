@@ -10,8 +10,8 @@ define table zdte_monitor {
   key folio     : abap.char( 20 ) not null;
   key proveedor : abap.char( 10 ) not null;
 
-  sociedad      : abap.char( 10 );  " RUT receptor del DTE
-  bukrs_sap     : bukrs;             " CompanyCode SAP resuelto en proceso
+  sociedad      : abap.char( 10 );
+  bukrs_sap     : bukrs;
   prov_sap      : lifnr;
   nombre_prov   : abap.char( 80 );
 

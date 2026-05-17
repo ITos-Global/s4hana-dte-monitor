@@ -25,6 +25,7 @@ CLASS zcl_dte_processor DEFINITION
              tipo_dte      TYPE numc3,
              folio         TYPE char20,
              rut_emisor    TYPE char12,
+             razon_social  TYPE char100,
              rut_receptor  TYPE char12,
              fecha_emision TYPE dats,
              moneda        TYPE waers,
@@ -569,6 +570,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       tipo_dte      = ls_dte-tipo_dte
       folio         = ls_dte-folio
       rut_emisor    = ls_dte-rut_emisor
+      razon_social  = ls_dte-razon_social
       rut_receptor  = ls_dte-rut_receptor
       fecha_emision = ls_dte-fecha_emision
       moneda        = ls_dte-moneda

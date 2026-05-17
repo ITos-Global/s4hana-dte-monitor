@@ -102,7 +102,7 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
 
       MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
         ENTITY DteMonitor
-          CREATE FIELDS ( TipoDte Folio Proveedor Sociedad
+          CREATE FIELDS ( TipoDte Folio Proveedor Sociedad NombreProveedor
                           FechaDocumento Moneda MontoNeto MontoExento
                           Iec IvaRecuperable IvaNoRecuperable IvaRetenido
                           TotalDocumento XmlData Estado
@@ -113,6 +113,7 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
             Folio            = ls_meta-folio
             Proveedor        = ls_meta-rut_emisor
             Sociedad         = ls_meta-rut_receptor
+            NombreProveedor  = ls_meta-razon_social
             FechaDocumento   = ls_meta-fecha_emision
             Moneda           = ls_meta-moneda
             MontoNeto        = ls_meta-monto_neto

@@ -72,7 +72,7 @@ CLASS zcl_dte_processor DEFINITION
     METHODS get_facturado_hes_neto
       IMPORTING iv_oc                 TYPE ebeln
                 iv_hes                TYPE char10
-      RETURNING VALUE(rv_monto_neto)  TYPE p LENGTH 15 DECIMALS 2.
+      RETURNING VALUE(rv_monto_neto)  TYPE zdte_monitor-total_doc.
 
     METHODS process_dte
       IMPORTING

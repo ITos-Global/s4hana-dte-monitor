@@ -5,9 +5,9 @@ CLASS lhc_dtemonitor DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
       IMPORTING keys REQUEST requested_authorizations FOR DteMonitor RESULT result.
     METHODS ingest_from_xml FOR MODIFY
-      IMPORTING keys FOR ACTION DteMonitor~IngestFromXml.
+      IMPORTING keys FOR ACTION DteMonitor~IngestFromXml RESULT result.
     METHODS ingest_from_sii FOR MODIFY
-      IMPORTING keys FOR ACTION DteMonitor~IngestFromSii.
+      IMPORTING keys FOR ACTION DteMonitor~IngestFromSii RESULT result.
     METHODS refrescar_masivo FOR MODIFY
       IMPORTING keys FOR ACTION DteMonitor~RefrescarMasivo.
     METHODS reprocesar FOR MODIFY

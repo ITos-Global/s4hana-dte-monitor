@@ -131,6 +131,23 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
         MAPPED   DATA(lt_m_ix)
         FAILED   DATA(lt_f_ix)
         REPORTED DATA(lt_r_ix).
+
+      " Rellenar el result con la entidad recién creada
+      READ TABLE lt_m_ix-dtemonitor INTO DATA(ls_mapped_ix)
+        WITH KEY %cid = ls_key_ix-%cid.
+      IF sy-subrc = 0.
+        READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+          ENTITY DteMonitor ALL FIELDS
+          WITH VALUE #( ( %tky = ls_mapped_ix-%tky ) )
+          RESULT DATA(lt_read_ix).
+        IF lt_read_ix IS NOT INITIAL.
+          APPEND VALUE #(
+            %cid_ref = ls_key_ix-%cid
+            %tky     = lt_read_ix[ 1 ]-%tky
+            %param   = CORRESPONDING #( lt_read_ix[ 1 ] )
+          ) TO result.
+        ENDIF.
+      ENDIF.
     ENDLOOP.
 
   ENDMETHOD.
@@ -196,6 +213,21 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
               HoraCreacion      = lv_time_is
               UsuarioCreacion   = lv_user_is
             ) ).
+      ENDIF.
+
+      " Rellenar el result con la entidad (actualizada o creada)
+      READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+        ENTITY DteMonitor ALL FIELDS
+        WITH VALUE #( ( %tky = VALUE #( TipoDte   = ls_key_is-%param-TipoDte
+                                        Folio     = ls_key_is-%param-Folio
+                                        Proveedor = ls_key_is-%param-Proveedor ) ) )
+        RESULT DATA(lt_read_is).
+      IF lt_read_is IS NOT INITIAL.
+        APPEND VALUE #(
+          %cid_ref = ls_key_is-%cid
+          %tky     = lt_read_is[ 1 ]-%tky
+          %param   = CORRESPONDING #( lt_read_is[ 1 ] )
+        ) TO result.
       ENDIF.
     ENDLOOP.
 

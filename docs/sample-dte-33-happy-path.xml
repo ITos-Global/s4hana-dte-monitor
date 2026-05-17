@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  XML de ejemplo para Monitor DTE Proveedor — Camino feliz (Tipo 33)
+  ===================================================================
+  Escenario: Factura Afecta con OC + HES aprobadas en SAP.
+  Resultado esperado: registro creado en estado '01' Pendiente.
+                      Luego al recibir FE_RECEP via IngestFromSii,
+                      AutoProcess dispara → estado '02' Validado.
+
+  Precondiciones en SAP:
+    - Sociedad TAXNR '76188363-1' en I_AddlCompanyCodeInformation
+    - Proveedor TaxNumber1 '76543210-9' en I_Supplier
+    - OC 4500012345 aprobada (PurchasingProcessingStatus='05')
+    - HES 1000000123 aprobada (ApprovalStatus='30') ligada a la OC
+    - Monto pendiente de la HES >= 1.785.000 CLP
+-->
+<DTE>
+  <Encabezado>
+    <IdDoc>
+      <TipoDTE>33</TipoDTE>
+      <Folio>1234009</Folio>
+      <FchEmis>2026-05-10</FchEmis>
+    </IdDoc>
+    <Emisor>
+      <RUTEmisor>76543210-9</RUTEmisor>
+      <RznSoc>SERVICIOS MINEROS S.A.</RznSoc>
+    </Emisor>
+    <Receptor>
+      <RUTRecep>76188363-1</RUTRecep>
+      <RznSocRecep>FENIX GOLD S.A.</RznSocRecep>
+    </Receptor>
+    <Totales>
+      <MntNeto>1500000</MntNeto>
+      <TasaIVA>19</TasaIVA>
+      <IVA>285000</IVA>
+      <MntTotal>1785000</MntTotal>
+    </Totales>
+  </Encabezado>
+  <Referencia>
+    <NroLinRef>1</NroLinRef>
+    <TpoDocRef>801</TpoDocRef>
+    <FolioRef>4500012345</FolioRef>
+  </Referencia>
+  <Referencia>
+    <NroLinRef>2</NroLinRef>
+    <TpoDocRef>HES</TpoDocRef>
+    <FolioRef>1000000123</FolioRef>
+  </Referencia>
+</DTE>

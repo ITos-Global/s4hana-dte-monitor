@@ -14,7 +14,15 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
 
   static factory action IngestFromSii parameter ZS_DTE_INGEST_SII [1];
 
+  " Re-validación masiva: sincroniza pendientes contra SAP y aplica grace period.
+  static action RefrescarMasivo;
+
   action ( features : instance ) Reprocesar
+    result [1] $self;
+
+  " Contabilización manual disparada desde el botón "Contabilizar" del monitor.
+  " Sólo habilitada en estado '02' (Validado).
+  action ( features : instance ) Contabilizar
     result [1] $self;
 
   action ( features : instance ) Rechazar
@@ -64,7 +72,11 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
     HojaEntradaServicio,
     EntradaMercancia,
     AnioEntradaMercancia,
-    FolioReferencia;
+    FolioReferencia,
+    MotivoNc,
+    MaterialDocRef,
+    MaterialDocRefAnio,
+    DocFacturaOrigen;
 
   mapping for zdte_monitor
   {
@@ -96,6 +108,10 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
     AnioEntradaMercancia = year_em;
     HojaEntradaServicio  = hes;
     FolioReferencia      = folio_ref;
+    MotivoNc             = motivo_nc;
+    MaterialDocRef       = material_doc_ref;
+    MaterialDocRefAnio   = material_doc_ref_y;
+    DocFacturaOrigen     = doc_fact_origen;
     XmlData              = xml_data;
     LogProcesamiento     = log_proc;
     DiasPendientes       = dias_pend;

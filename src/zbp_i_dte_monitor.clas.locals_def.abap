@@ -8,8 +8,12 @@ CLASS lhc_dtemonitor DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING keys FOR ACTION DteMonitor~IngestFromXml.
     METHODS ingest_from_sii FOR MODIFY
       IMPORTING keys FOR ACTION DteMonitor~IngestFromSii.
+    METHODS refrescar_masivo FOR MODIFY
+      IMPORTING keys FOR ACTION DteMonitor~RefrescarMasivo.
     METHODS reprocesar FOR MODIFY
       IMPORTING keys FOR ACTION DteMonitor~Reprocesar RESULT result.
+    METHODS contabilizar FOR MODIFY
+      IMPORTING keys FOR ACTION DteMonitor~Contabilizar RESULT result.
     METHODS rechazar FOR MODIFY
       IMPORTING keys FOR ACTION DteMonitor~Rechazar RESULT result.
     METHODS indicar_doc_referencia FOR MODIFY

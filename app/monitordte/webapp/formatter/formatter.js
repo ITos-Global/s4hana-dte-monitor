@@ -4,11 +4,11 @@ sap.ui.define([], function () {
     // Mapa de estados del DTE
     const ESTADOS = {
         "01": "Pendiente",
-        "02": "Aprobado",
+        "02": "Validado",
         "03": "Rechazado",
         "04": "Por rechazar",
         "05": "No procesado",
-        "06": "Contabilizado"
+        "06": "Aceptado"
     };
 
     // Mapa de tipos DTE chilenos
@@ -43,10 +43,11 @@ sap.ui.define([], function () {
         // =====================================================================
         criticalityToState: function (iCriticality) {
             switch (parseInt(iCriticality, 10)) {
-                case 1:  return "Error";
-                case 2:  return "Warning";
-                case 3:  return "Success";
-                default: return "None";
+                case 1:  return "Error";       // rojo / negro (Rechazado / No Procesado)
+                case 2:  return "Warning";     // naranja (Por Rechazar)
+                case 3:  return "Success";     // verde (Validado)
+                case 5:  return "Information"; // azul (Aceptado / Contabilizado)
+                default: return "None";        // gris (Pendiente)
             }
         },
 
@@ -58,7 +59,19 @@ sap.ui.define([], function () {
                 case 1:  return "sap-icon://error";
                 case 2:  return "sap-icon://alert";
                 case 3:  return "sap-icon://accept";
-                default: return "";
+                case 5:  return "sap-icon://accept";
+                default: return "sap-icon://pending";
+            }
+        },
+
+        // =====================================================================
+        // Motivo NC → texto legible
+        // =====================================================================
+        motivoNcText: function (sMotivo) {
+            switch (String(sMotivo)) {
+                case "1": return "Devolución de Mercancía";
+                case "2": return "Ajuste de Precio";
+                default:  return "";
             }
         },
 

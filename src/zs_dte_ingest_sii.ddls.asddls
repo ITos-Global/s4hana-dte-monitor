@@ -2,8 +2,8 @@
 define abstract entity ZS_DTE_INGEST_SII {
   TipoDte           : abap.numc( 3 );
   Folio             : abap.char( 20 );
-  Proveedor         : abap.char( 10 );  // RUT proveedor
-  Sociedad          : abap.char( 10 );  // RUT receptor
+  Proveedor         : abap.char( 10 );
+  Sociedad          : abap.char( 10 );
   FechaRecepcionSii : abap.dats;
   FechaDocumento    : abap.dats;
   Moneda            : waers;

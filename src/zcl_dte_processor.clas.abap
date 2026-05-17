@@ -97,7 +97,7 @@ CLASS zcl_dte_processor DEFINITION
         iv_tipo_dte             TYPE zdte_monitor-tipo_dte
         iv_xml_data             TYPE string
         iv_bukrs                TYPE bukrs
-        iv_motivo_nc            TYPE numc1                       OPTIONAL
+        iv_motivo_nc            TYPE zdte_monitor-motivo_nc      OPTIONAL
         iv_material_doc_ref     TYPE belnr_d                     OPTIONAL
         iv_material_doc_ref_y   TYPE gjahr                       OPTIONAL
         iv_doc_fact_origen      TYPE belnr_d                     OPTIONAL
@@ -149,7 +149,7 @@ CLASS zcl_dte_processor DEFINITION
              " Referencia factura base (TpoDocRef 33/34) para NC/ND
              factura_base_folio TYPE char20,
              " Datos NC propagados por posting_dte (no extraídos del XML)
-             motivo_nc          TYPE numc1,
+             motivo_nc          TYPE zdte_monitor-motivo_nc,
              material_doc_ref   TYPE belnr_d,
              material_doc_ref_y TYPE gjahr,
              doc_fact_origen    TYPE belnr_d,

@@ -624,9 +624,10 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
         Proveedor = ls_rm-proveedor ).
 
       " (1) Sincronización: ¿existe doc contable en historial OC con este folio?
+      "     Para Type=2, PurchasingHistoryDocument es el N° de factura SAP.
       DATA lv_inv_sap TYPE belnr_d.
       IF ls_rm-oc IS NOT INITIAL.
-        SELECT SINGLE SupplierInvoice
+        SELECT SINGLE PurchasingHistoryDocument
           FROM I_PurchaseOrderHistoryAPI01
           WHERE PurchaseOrder                 = @ls_rm-oc
             AND ReferenceDocument             = @ls_rm-folio

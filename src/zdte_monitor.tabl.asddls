@@ -50,6 +50,12 @@ define table zdte_monitor {
 
   folio_ref     : abap.char( 20 );
 
+  " --- Notas de Crédito / Débito ---
+  motivo_nc          : abap.numc( 1 );  " 1=Devolución Mercancía, 2=Ajuste Precio
+  material_doc_ref   : belnr_d;          " Doc material referenciado (NC Devolución)
+  material_doc_ref_y : gjahr;            " Año del doc material referenciado
+  doc_fact_origen    : belnr_d;          " Factura base SAP (NC/ND tipos 56/61)
+
   @Semantics.largeObject.mimeType : 'text/xml'
   xml_data      : abap.string( 0 );
 

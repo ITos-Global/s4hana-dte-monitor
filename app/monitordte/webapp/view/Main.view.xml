@@ -170,6 +170,14 @@
                                 enabled="false"
                                 press=".onReprocesar"/>
 
+                        <Button id="btnContabilizar"
+                                text="{i18n>btnContabilizar}"
+                                tooltip="{i18n>btnContabilizarTooltip}"
+                                icon="sap-icon://accept"
+                                type="Emphasized"
+                                enabled="false"
+                                press=".onContabilizar"/>
+
                         <Button id="btnVerPdf"
                                 text="{i18n>btnVerPdf}"
                                 tooltip="{i18n>btnVerPdfTooltip}"

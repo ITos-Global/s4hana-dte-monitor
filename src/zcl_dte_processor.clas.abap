@@ -61,14 +61,18 @@ CLASS zcl_dte_processor DEFINITION
     TYPES tt_pos_pendiente TYPE STANDARD TABLE OF ty_pos_pendiente WITH DEFAULT KEY.
 
     " Lectura del monto pendiente por posición HES desde I_PurchaseOrderHistoryAPI01.
-    " No se admite parcialidad de facturación de la HES, por lo que se devuelven
-    " las posiciones HES tal cual sin descontar facturas previas.
-    " TODO: descontar HES ya facturadas y validar anulación cuando se implemente
-    "       la verificación de I_SupplierInvoice.IsReversed.
     METHODS get_pendiente_hes
       IMPORTING iv_oc           TYPE ebeln
                 iv_hes          TYPE char10
       RETURNING VALUE(rt_pos)   TYPE tt_pos_pendiente.
+
+    " Suma neta de facturas previas para una HES (Type=2, Cat=Q) descontando
+    " las anulaciones detectadas por DebitCreditCode='H' que referencian
+    " la factura original.
+    METHODS get_facturado_hes_neto
+      IMPORTING iv_oc                 TYPE ebeln
+                iv_hes                TYPE char10
+      RETURNING VALUE(rv_monto_neto)  TYPE p LENGTH 15 DECIMALS 2.
 
     METHODS process_dte
       IMPORTING
@@ -85,6 +89,23 @@ CLASS zcl_dte_processor DEFINITION
         ev_year_em     TYPE zdte_monitor-year_em
         ev_doc_fact    TYPE zdte_monitor-doc_fact
         ev_year_fact   TYPE zdte_monitor-year_fact.
+
+    " Posting separado de la validación. Se invoca desde la action Contabilizar
+    " cuando el usuario presiona el botón en el monitor (estado debe ser '02').
+    METHODS posting_dte
+      IMPORTING
+        iv_tipo_dte             TYPE zdte_monitor-tipo_dte
+        iv_xml_data             TYPE string
+        iv_bukrs                TYPE bukrs
+        iv_motivo_nc            TYPE numc1                       OPTIONAL
+        iv_material_doc_ref     TYPE belnr_d                     OPTIONAL
+        iv_material_doc_ref_y   TYPE gjahr                       OPTIONAL
+        iv_doc_fact_origen      TYPE belnr_d                     OPTIONAL
+      EXPORTING
+        ev_doc_fact             TYPE belnr_d
+        ev_year_fact            TYPE gjahr
+        ev_ok                   TYPE abap_bool
+        ev_mensaje              TYPE string.
 
     METHODS process_dte_with_positions
       IMPORTING
@@ -125,6 +146,13 @@ CLASS zcl_dte_processor DEFINITION
              em_ref        TYPE belnr_d,
              folio_ref     TYPE char20,
              tiene_ref     TYPE abap_bool,
+             " Referencia factura base (TpoDocRef 33/34) para NC/ND
+             factura_base_folio TYPE char20,
+             " Datos NC propagados por posting_dte (no extraídos del XML)
+             motivo_nc          TYPE numc1,
+             material_doc_ref   TYPE belnr_d,
+             material_doc_ref_y TYPE gjahr,
+             doc_fact_origen    TYPE belnr_d,
            END OF ty_dte_xml.
 
     TYPES: BEGIN OF ty_referencia,
@@ -166,6 +194,13 @@ CLASS zcl_dte_processor DEFINITION
       IMPORTING is_dte         TYPE ty_dte_xml
       EXPORTING ev_ok          TYPE abap_bool
                 ev_mensaje     TYPE string.
+
+    " Validación de factura base para NC (61) / ND (56)
+    METHODS validate_factura_base
+      IMPORTING is_dte         TYPE ty_dte_xml
+      EXPORTING ev_ok          TYPE abap_bool
+                ev_mensaje     TYPE string
+                ev_doc_origen  TYPE belnr_d.
 
     METHODS validate_sociedad
       IMPORTING iv_rut_sociedad TYPE zdte_monitor-sociedad
@@ -281,6 +316,15 @@ CLASS zcl_dte_processor IMPLEMENTATION.
                 ev_mensaje  = lv_msg ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
+    " 4.5) Validación factura base (sólo NC tipo 61 y ND tipo 56)
+    DATA lv_doc_origen TYPE belnr_d.
+    validate_factura_base(
+      EXPORTING is_dte        = ls_dte
+      IMPORTING ev_ok         = lv_ok
+                ev_mensaje    = lv_msg
+                ev_doc_origen = lv_doc_origen ).
+    IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
+
     " 5) Validación EM (existe + asociada a OC); captura YEAR_EM
     validate_em(
       EXPORTING is_dte     = ls_dte
@@ -304,17 +348,10 @@ CLASS zcl_dte_processor IMPLEMENTATION.
                 ev_mensaje = lv_msg ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
-    " 8) Contabilización
-    contabilizar(
-      EXPORTING is_dte       = ls_dte
-                iv_bukrs     = ev_bukrs
-      IMPORTING ev_doc_fact  = ev_doc_fact
-                ev_year_fact = ev_year_fact
-                ev_ok        = lv_ok
-                ev_mensaje   = lv_msg ).
-
-    ev_estado = COND #( WHEN lv_ok = abap_true THEN '06' ELSE '05' ).
-    ev_log    = lv_msg.
+    " 8) Validaciones OK → estado VALIDADO (no contabiliza automático;
+    "    el usuario presiona el botón Contabilizar para hacer el posting).
+    ev_estado = '02'.
+    ev_log    = 'Validaciones OK. Listo para contabilizar.'.
   ENDMETHOD.
 
   METHOD process_dte_with_positions.
@@ -368,17 +405,42 @@ CLASS zcl_dte_processor IMPLEMENTATION.
                   IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
-    contabilizar(
-      EXPORTING is_dte        = ls_dte
-                iv_bukrs      = ev_bukrs
-                it_posiciones = it_posiciones
-      IMPORTING ev_doc_fact   = ev_doc_fact
-                ev_year_fact  = ev_year_fact
-                ev_ok         = lv_ok
-                ev_mensaje    = lv_msg ).
+    " Validaciones OK → estado VALIDADO (no contabiliza automático).
+    " La contabilización con posiciones se hace desde la action dedicada.
+    ev_estado = '02'.
+    ev_log    = 'Validaciones OK con posiciones. Listo para contabilizar.'.
+  ENDMETHOD.
 
-    ev_estado = COND #( WHEN lv_ok = abap_true THEN '06' ELSE '05' ).
-    ev_log    = lv_msg.
+  METHOD posting_dte.
+    " Contabilización separada de la validación. Soporta NC con branching por motivo.
+    " - motivo_nc = 1 → Devolución de Mercancía (referencia MaterialDocument)
+    " - motivo_nc = 2 → Ajuste de Precio (sólo financiero, sin movimiento de stock)
+    ev_ok        = abap_false.
+    ev_doc_fact  = ''.
+    ev_year_fact = ''.
+    ev_mensaje   = ''.
+
+    DATA ls_dte TYPE ty_dte_xml.
+    TRY.
+        ls_dte = parse_xml( iv_xml_data ).
+      CATCH cx_dynamic_check INTO DATA(lx_post).
+        ev_mensaje = |Error al parsear XML para contabilizar: { lx_post->get_text( ) }|.
+        RETURN.
+    ENDTRY.
+
+    " Propagar datos NC al record parseado para que contabilizar pueda diferenciar
+    ls_dte-motivo_nc          = iv_motivo_nc.
+    ls_dte-material_doc_ref   = iv_material_doc_ref.
+    ls_dte-material_doc_ref_y = iv_material_doc_ref_y.
+    ls_dte-doc_fact_origen    = iv_doc_fact_origen.
+
+    contabilizar(
+      EXPORTING is_dte       = ls_dte
+                iv_bukrs     = iv_bukrs
+      IMPORTING ev_doc_fact  = ev_doc_fact
+                ev_year_fact = ev_year_fact
+                ev_ok        = ev_ok
+                ev_mensaje   = ev_mensaje ).
   ENDMETHOD.
 
   METHOD parse_xml.
@@ -486,7 +548,9 @@ CLASS zcl_dte_processor IMPLEMENTATION.
           rs_dte-em_ref    = CONV belnr_d( ls_ref-folio_ref ).
           rs_dte-tiene_ref = abap_true.
         WHEN '33' OR '34'.
-          rs_dte-folio_ref = ls_ref-folio_ref.
+          " Referencia a factura base (para NC tipo 61 y ND tipo 56)
+          rs_dte-factura_base_folio = ls_ref-folio_ref.
+          rs_dte-folio_ref          = ls_ref-folio_ref.
       ENDCASE.
     ENDLOOP.
 
@@ -765,6 +829,44 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     ev_mensaje = ''.
   ENDMETHOD.
 
+  METHOD validate_factura_base.
+    " Para NC (61) / ND (56): verifica que la factura base referenciada
+    " (TpoDocRef = 33/34, FolioRef en XML) exista en SAP.
+    " Si no existe → ev_ok = false, mensaje específico.
+    " Si existe → guarda SupplierInvoice en ev_doc_origen.
+    ev_ok        = abap_false.
+    ev_doc_origen = ''.
+
+    " Sólo aplica a NC y ND
+    IF is_dte-tipo_dte <> '056' AND is_dte-tipo_dte <> '061'.
+      ev_ok      = abap_true.
+      ev_mensaje = ''.
+      RETURN.
+    ENDIF.
+
+    " Si el XML no trae factura base, fallar con mensaje del spec
+    IF is_dte-factura_base_folio IS INITIAL.
+      ev_mensaje = 'NC/ND sin referencia a factura base (TpoDocRef 33/34) en el XML.'.
+      RETURN.
+    ENDIF.
+
+    " Buscar la factura previa en el historial de la OC
+    SELECT SINGLE SupplierInvoice
+      FROM I_PurchaseOrderHistoryAPI01
+      WHERE PurchaseOrder                 = @is_dte-oc_ref
+        AND ReferenceDocument             = @is_dte-factura_base_folio
+        AND PurchasingHistoryDocumentType = '2'
+      INTO @ev_doc_origen.
+
+    IF sy-subrc <> 0 OR ev_doc_origen IS INITIAL.
+      ev_mensaje = |Factura de origen { is_dte-factura_base_folio } no encontrada en historial de SAP. Verifique contabilización previa.|.
+      RETURN.
+    ENDIF.
+
+    ev_ok      = abap_true.
+    ev_mensaje = ''.
+  ENDMETHOD.
+
   METHOD validate_monto.
     ev_ok = abap_false.
 
@@ -1027,6 +1129,40 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD get_facturado_hes_neto.
+    " Suma facturas previas (Type=2, Cat=Q) menos sus anulaciones (DebitCreditCode='H'
+    " con ReferenceDocument apuntando a la factura original).
+    rv_monto_neto = 0.
+
+    IF iv_oc IS INITIAL OR iv_hes IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " 1) Facturas previas asociadas a la HES (Type=2 Cat=Q)
+    SELECT SupplierInvoice,
+           PurchaseOrderAmount,
+           DebitCreditCode
+      FROM I_PurchaseOrderHistoryAPI01
+      WHERE PurchaseOrder                 = @iv_oc
+        AND PurchasingHistoryDocumentType = '2'
+        AND PurchasingHistoryCategory     = 'Q'
+        AND PurchasingHistoryDocument     = @iv_hes
+      INTO TABLE @DATA(lt_facturas).
+
+    " 2) Para cada factura, sumar su valor con signo:
+    "    - Movimiento original (S = Soll/Debe): suma positiva
+    "    - Anulación (H = Haben/Haber): suma negativa
+    "    Si una factura tiene anulaciones encadenadas que la cancelan,
+    "    la suma resultante es cero y se libera la HES.
+    LOOP AT lt_facturas INTO DATA(ls_f).
+      IF ls_f-DebitCreditCode = 'H'.
+        rv_monto_neto = rv_monto_neto - ls_f-PurchaseOrderAmount.
+      ELSE.
+        rv_monto_neto = rv_monto_neto + ls_f-PurchaseOrderAmount.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD get_monto_pendiente.
 
     DATA lv_facturado TYPE p LENGTH 15 DECIMALS 2.
@@ -1045,6 +1181,12 @@ CLASS zcl_dte_processor IMPLEMENTATION.
           lv_moneda_hes = ls_pos_hes-document_currency.
         ENDIF.
       ENDLOOP.
+
+      " Descontar facturas previas netas de anulación.
+      DATA(lv_facturado_hes) = get_facturado_hes_neto(
+        iv_oc  = is_dte-oc_ref
+        iv_hes = is_dte-hes_ref ).
+      lv_monto_hes_doc = lv_monto_hes_doc - lv_facturado_hes.
 
       " Convertir a CLP usando la moneda de la HES (no la del DTE).
       IF lv_moneda_hes IS INITIAL OR lv_moneda_hes = 'CLP'.

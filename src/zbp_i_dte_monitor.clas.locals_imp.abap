@@ -13,21 +13,25 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
       CLEAR ls_res_feat.
       ls_res_feat-%tky = ls_feat-%tky.
 
-      IF ls_feat-Estado = '02' OR ls_feat-Estado = '06'.
+      " '06' (Aceptado/Contabilizado) y '03' (Rechazado) son estados terminales
+      IF ls_feat-Estado = '06' OR ls_feat-Estado = '03'.
         ls_res_feat-%features-%action-Reprocesar           = if_abap_behv=>fc-o-disabled.
         ls_res_feat-%features-%action-Rechazar             = if_abap_behv=>fc-o-disabled.
         ls_res_feat-%features-%action-IndicarDocReferencia = if_abap_behv=>fc-o-disabled.
         ls_res_feat-%features-%action-IndicarPosiciones    = if_abap_behv=>fc-o-disabled.
+        ls_res_feat-%features-%action-Contabilizar         = if_abap_behv=>fc-o-disabled.
       ELSE.
         ls_res_feat-%features-%action-Reprocesar = if_abap_behv=>fc-o-enabled.
-        ls_res_feat-%features-%action-Rechazar   = COND #(
-          WHEN ls_feat-Estado = '03' THEN if_abap_behv=>fc-o-disabled
-          ELSE if_abap_behv=>fc-o-enabled ).
+        ls_res_feat-%features-%action-Rechazar   = if_abap_behv=>fc-o-enabled.
         ls_res_feat-%features-%action-IndicarDocReferencia = COND #(
           WHEN ls_feat-Estado = '04' THEN if_abap_behv=>fc-o-enabled
           ELSE if_abap_behv=>fc-o-disabled ).
         ls_res_feat-%features-%action-IndicarPosiciones = COND #(
           WHEN ls_feat-Estado = '04' THEN if_abap_behv=>fc-o-enabled
+          ELSE if_abap_behv=>fc-o-disabled ).
+        " Contabilizar habilitado sólo cuando todas las validaciones pasaron ('02').
+        ls_res_feat-%features-%action-Contabilizar = COND #(
+          WHEN ls_feat-Estado = '02' THEN if_abap_behv=>fc-o-enabled
           ELSE if_abap_behv=>fc-o-disabled ).
       ENDIF.
 
@@ -58,6 +62,7 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
         %action-Rechazar             = if_abap_behv=>auth-allowed
         %action-IndicarDocReferencia = if_abap_behv=>auth-allowed
         %action-IndicarPosiciones    = if_abap_behv=>auth-allowed
+        %action-Contabilizar         = if_abap_behv=>auth-allowed
       ) TO result.
     ENDLOOP.
   ENDMETHOD.
@@ -198,7 +203,9 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
 
   METHOD auto_process.
     " Determination on modify: cuando llega FechaRecepcionSii y el registro
-    " está en estado '01', dispara el processor para resolver/contabilizar.
+    " está en estado '01', dispara el processor para correr todas las
+    " validaciones. Si pasan, el estado queda en '02' (Validado); la
+    " contabilización se hace luego desde la action manual Contabilizar.
     READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
       ENTITY DteMonitor ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_ap)
@@ -287,6 +294,73 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
       APPEND VALUE #(
         %tky   = ls_res_rep-%tky
         %param = CORRESPONDING #( ls_res_rep )
+      ) TO result.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD contabilizar.
+    " Acción manual disparada desde el botón Contabilizar.
+    " Pre-condición: registro en estado '02' (Validado).
+    DATA(lv_user_con) = cl_abap_context_info=>get_user_technical_name( ).
+    DATA(lv_date_con) = cl_abap_context_info=>get_system_date( ).
+
+    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+      ENTITY DteMonitor ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_ctb)
+      FAILED DATA(lt_f_ctb).
+
+    DATA(lo_proc_ctb) = NEW zcl_dte_processor( ).
+
+    LOOP AT lt_ctb INTO DATA(ls_ctb).
+      DATA lv_doc_fact_ctb  TYPE belnr_d.
+      DATA lv_year_fact_ctb TYPE gjahr.
+      DATA lv_ok_ctb        TYPE abap_bool.
+      DATA lv_msg_ctb       TYPE string.
+
+      lo_proc_ctb->posting_dte(
+        EXPORTING
+          iv_tipo_dte           = ls_ctb-TipoDte
+          iv_xml_data           = ls_ctb-XmlData
+          iv_bukrs              = ls_ctb-BukrsSap
+          iv_motivo_nc          = ls_ctb-MotivoNc
+          iv_material_doc_ref   = ls_ctb-MaterialDocRef
+          iv_material_doc_ref_y = ls_ctb-MaterialDocRefAnio
+          iv_doc_fact_origen    = ls_ctb-DocFacturaOrigen
+        IMPORTING
+          ev_doc_fact           = lv_doc_fact_ctb
+          ev_year_fact          = lv_year_fact_ctb
+          ev_ok                 = lv_ok_ctb
+          ev_mensaje            = lv_msg_ctb ).
+
+      DATA(lv_estado_ctb) = COND zdte_monitor-estado(
+        WHEN lv_ok_ctb = abap_true THEN '06' ELSE '05' ).
+
+      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+        ENTITY DteMonitor
+          UPDATE FIELDS ( Estado LogProcesamiento
+                          DocumentoFacturaSap AnioFacturaSap
+                          FechaModificacion UsuarioModificacion )
+          WITH VALUE #( (
+            %tky                = ls_ctb-%tky
+            Estado              = lv_estado_ctb
+            LogProcesamiento    = |[{ lv_date_con }] { lv_msg_ctb }|
+            DocumentoFacturaSap = lv_doc_fact_ctb
+            AnioFacturaSap      = lv_year_fact_ctb
+            FechaModificacion   = lv_date_con
+            UsuarioModificacion = lv_user_con
+          ) )
+        REPORTED reported
+        FAILED   failed.
+    ENDLOOP.
+
+    READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+      ENTITY DteMonitor ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_res_ctb).
+
+    LOOP AT lt_res_ctb INTO DATA(ls_res_ctb).
+      APPEND VALUE #(
+        %tky   = ls_res_ctb-%tky
+        %param = CORRESPONDING #( ls_res_ctb )
       ) TO result.
     ENDLOOP.
   ENDMETHOD.
@@ -505,13 +579,15 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
 
         LOOP AT lt_pend_gmp INTO DATA(ls_pend_gmp).
           APPEND VALUE #(
-            %tky                  = ls_dte_gmp-%tky
-            PurchaseOrder         = ls_pend_gmp-purchase_order
-            PurchaseOrderItem     = ls_pend_gmp-purchase_order_item
-            ServiceEntrySheet     = ls_pend_gmp-service_entry_sheet
-            ServiceEntrySheetItem = ls_pend_gmp-service_entry_sheet_item
-            PurchaseOrderAmount   = ls_pend_gmp-purchase_order_amount
-            DocumentCurrency      = ls_pend_gmp-document_currency
+            %tky   = ls_dte_gmp-%tky
+            %param = VALUE #(
+              PurchaseOrder         = ls_pend_gmp-purchase_order
+              PurchaseOrderItem     = ls_pend_gmp-purchase_order_item
+              ServiceEntrySheet     = ls_pend_gmp-service_entry_sheet
+              ServiceEntrySheetItem = ls_pend_gmp-service_entry_sheet_item
+              PurchaseOrderAmount   = ls_pend_gmp-purchase_order_amount
+              DocumentCurrency      = ls_pend_gmp-document_currency
+            )
           ) TO result.
         ENDLOOP.
 
@@ -519,6 +595,124 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
       "      con PurchasingHistoryDocumentType='1' / Category='E' cuando se defina
       "      la regla de parcialidad de EM.
       ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD refrescar_masivo.
+    " Re-validación masiva sobre estados '01' (Pendiente), '04' (Por Rechazar) y
+    " '05' (No Procesado). Para cada registro:
+    "  1) Sincronización: si existe documento contable en SAP (Type=2 RE/KG) →
+    "     estado '06' (Aceptado), log "Sincronizado".
+    "  2) Grace period: si '04' con dias_pend >= 7 → estado '03' (Rechazado).
+    "  3) En otro caso → re-llamar process_dte para re-validar.
+
+    DATA(lv_user_rm) = cl_abap_context_info=>get_user_technical_name( ).
+    DATA(lv_date_rm) = cl_abap_context_info=>get_system_date( ).
+
+    " Sólo registros pendientes/por rechazar/no procesados
+    SELECT *
+      FROM zdte_monitor
+      WHERE estado = '01' OR estado = '04' OR estado = '05'
+      INTO TABLE @DATA(lt_rm).
+
+    DATA(lo_proc_rm) = NEW zcl_dte_processor( ).
+
+    LOOP AT lt_rm INTO DATA(ls_rm).
+      DATA(ls_tky_rm) = VALUE zi_dte_monitor(
+        TipoDte   = ls_rm-tipo_dte
+        Folio     = ls_rm-folio
+        Proveedor = ls_rm-proveedor ).
+
+      " (1) Sincronización: ¿existe doc contable en historial OC con este folio?
+      DATA lv_inv_sap TYPE belnr_d.
+      IF ls_rm-oc IS NOT INITIAL.
+        SELECT SINGLE SupplierInvoice
+          FROM I_PurchaseOrderHistoryAPI01
+          WHERE PurchaseOrder                 = @ls_rm-oc
+            AND ReferenceDocument             = @ls_rm-folio
+            AND PurchasingHistoryDocumentType = '2'
+          INTO @lv_inv_sap.
+      ENDIF.
+
+      IF lv_inv_sap IS NOT INITIAL.
+        MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+          ENTITY DteMonitor
+            UPDATE FIELDS ( Estado LogProcesamiento
+                            DocumentoFacturaSap
+                            FechaModificacion UsuarioModificacion )
+            WITH VALUE #( (
+              %tky                = VALUE #( TipoDte   = ls_rm-tipo_dte
+                                             Folio     = ls_rm-folio
+                                             Proveedor = ls_rm-proveedor )
+              Estado              = '06'
+              LogProcesamiento    = |[{ lv_date_rm }] Sincronizado: Documento { lv_inv_sap } detectado en SAP. Registrado fuera del Monitor.|
+              DocumentoFacturaSap = lv_inv_sap
+              FechaModificacion   = lv_date_rm
+              UsuarioModificacion = lv_user_rm
+            ) ).
+        CONTINUE.
+      ENDIF.
+
+      " (2) Grace period 7 días: '04' → '03'
+      IF ls_rm-estado = '04' AND ls_rm-dias_pend >= 7.
+        MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+          ENTITY DteMonitor
+            UPDATE FIELDS ( Estado LogProcesamiento
+                            FechaModificacion UsuarioModificacion )
+            WITH VALUE #( (
+              %tky                = VALUE #( TipoDte   = ls_rm-tipo_dte
+                                             Folio     = ls_rm-folio
+                                             Proveedor = ls_rm-proveedor )
+              Estado              = '03'
+              LogProcesamiento    = |[{ lv_date_rm }] Rechazado automáticamente: { ls_rm-dias_pend } días en Por Rechazar sin corrección.|
+              FechaModificacion   = lv_date_rm
+              UsuarioModificacion = lv_user_rm
+            ) ).
+        CONTINUE.
+      ENDIF.
+
+      " (3) Re-validar con el processor (puede haber cambiado HES approval, etc.)
+      DATA lv_estado_rm   TYPE zdte_monitor-estado.
+      DATA lv_log_rm      TYPE string.
+      DATA lv_bukrs_rm    TYPE zdte_monitor-bukrs_sap.
+      DATA lv_prov_rm     TYPE zdte_monitor-prov_sap.
+      DATA lv_year_em_rm  TYPE zdte_monitor-year_em.
+      DATA lv_doc_rm      TYPE zdte_monitor-doc_fact.
+      DATA lv_year_fc_rm  TYPE zdte_monitor-year_fact.
+
+      lo_proc_rm->process_dte(
+        EXPORTING
+          iv_tipo_dte  = ls_rm-tipo_dte
+          iv_folio     = ls_rm-folio
+          iv_proveedor = ls_rm-proveedor
+          iv_sociedad  = ls_rm-sociedad
+          iv_xml_data  = ls_rm-xml_data
+        IMPORTING
+          ev_estado    = lv_estado_rm
+          ev_log       = lv_log_rm
+          ev_bukrs     = lv_bukrs_rm
+          ev_prov_sap  = lv_prov_rm
+          ev_year_em   = lv_year_em_rm
+          ev_doc_fact  = lv_doc_rm
+          ev_year_fact = lv_year_fc_rm ).
+
+      MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
+        ENTITY DteMonitor
+          UPDATE FIELDS ( Estado LogProcesamiento BukrsSap ProveedorSap
+                          AnioEntradaMercancia
+                          FechaModificacion UsuarioModificacion )
+          WITH VALUE #( (
+            %tky                 = VALUE #( TipoDte   = ls_rm-tipo_dte
+                                            Folio     = ls_rm-folio
+                                            Proveedor = ls_rm-proveedor )
+            Estado               = lv_estado_rm
+            LogProcesamiento     = |[{ lv_date_rm }] Refresh: { lv_log_rm }|
+            BukrsSap             = lv_bukrs_rm
+            ProveedorSap         = lv_prov_rm
+            AnioEntradaMercancia = lv_year_em_rm
+            FechaModificacion    = lv_date_rm
+            UsuarioModificacion  = lv_user_rm
+          ) ).
     ENDLOOP.
   ENDMETHOD.
 

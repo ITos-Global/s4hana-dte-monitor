@@ -17,10 +17,13 @@ sap.ui.define([
     const EdmType = exportLibrary.EdmType;
     const NS = "com.sap.gateway.srvd.zui_dte_monitor.v0001.";
 
-    // Estados que bloquean acciones de reproceso/rechazo
-    const ESTADO_BLOQUEADO = ["02", "06"];
+    // Estados terminales que bloquean acciones de reproceso/rechazo
+    // (03 Rechazado, 06 Aceptado/Contabilizado)
+    const ESTADO_BLOQUEADO    = ["03", "06"];
     // Estado que habilita indicar doc. ref. y posiciones
     const ESTADO_POR_RECHAZAR = "04";
+    // Estado que habilita el botón Contabilizar
+    const ESTADO_VALIDADO     = "02";
 
     return Controller.extend("com.fenixgold.dte.monitordte.controller.Main", {
 
@@ -82,9 +85,21 @@ sap.ui.define([
             if (oBinding) oBinding.filter([]);
         },
 
-        onRefresh: function () {
-            this._refreshTable();
-            MessageToast.show(this._i18n("msgRefrescado"));
+        onRefresh: async function () {
+            // Refrescar masivo: dispara la action backend (sync con SAP +
+            // grace period) y luego recarga la tabla.
+            this._setBusy(true);
+            try {
+                const oModel = this.getView().getModel();
+                await oModel.bindContext("/" + NS + "RefrescarMasivo(...)").execute();
+                this._refreshTable();
+                MessageToast.show(this._i18n("msgRefrescado"));
+            } catch (oErr) {
+                MessageBox.error(this._getErrorText(oErr));
+                this._refreshTable();
+            } finally {
+                this._setBusy(false);
+            }
         },
 
         // =====================================================================
@@ -199,12 +214,14 @@ sap.ui.define([
             const bSingle     = this._selectedContexts.length === 1;
             const bBloqueados = aEstados.every(e => ESTADO_BLOQUEADO.includes(e));
             const bPorRech    = bSingle && aEstados[0] === ESTADO_POR_RECHAZAR;
+            const bValidado   = bSingle && aEstados[0] === ESTADO_VALIDADO;
 
             this.byId("btnReprocesar").setEnabled(!bBloqueados);
             this.byId("btnRechazar").setEnabled(!bBloqueados);
             this.byId("btnVerPdf").setEnabled(bSingle);
             this.byId("btnDocRef").setEnabled(bPorRech);
             this.byId("btnPosiciones").setEnabled(bPorRech);
+            this.byId("btnContabilizar").setEnabled(bValidado);
 
             // Montos pendientes: requiere selección única con OC + HES indicados.
             const oCtx = this._selectedContext;
@@ -254,6 +271,116 @@ sap.ui.define([
                     }
                 }
             });
+        },
+
+        // =====================================================================
+        // ACCIÓN: Contabilizar (manual, sólo cuando estado = '02' Validado)
+        // =====================================================================
+        onContabilizar: function () {
+            const oCtx = this._selectedContext;
+            if (!oCtx || oCtx.getProperty("Estado") !== ESTADO_VALIDADO) {
+                MessageToast.show(this._i18n("msgNoSelection"));
+                return;
+            }
+
+            // NC tipo 61 con EM asociada → preguntar motivo (Devolución vs Ajuste)
+            const sTipoDte = oCtx.getProperty("TipoDte");
+            const sEm      = oCtx.getProperty("EntradaMercancia");
+            const bIsNcMat = sTipoDte === "061" && !!sEm;
+
+            if (bIsNcMat) {
+                this._openMotivoNcDialog(oCtx);
+                return;
+            }
+
+            this._invocarContabilizar(oCtx);
+        },
+
+        _invocarContabilizar: async function (oCtx) {
+            this._setBusy(true);
+            try {
+                await oCtx.requestObject();
+                await oCtx.getModel().bindContext(
+                    NS + "Contabilizar(...)",
+                    oCtx
+                ).execute();
+                MessageToast.show(this._i18n("btnContabilizar") + " OK");
+                this._refreshTable();
+            } catch (oErr) {
+                MessageBox.error(this._getErrorText(oErr));
+            } finally {
+                this._setBusy(false);
+            }
+        },
+
+        _openMotivoNcDialog: async function (oCtx) {
+            this._motivoNcCtx = oCtx;
+            if (!this._motivoNcDialog) {
+                this._motivoNcDialog = await Fragment.load({
+                    id: this.getView().getId(),
+                    name: "com.fenixgold.dte.monitordte.view.MotivoNC",
+                    controller: this
+                });
+                this.getView().addDependent(this._motivoNcDialog);
+            }
+            this.byId("rbgMotivoNc").setSelectedIndex(-1);
+            this.byId("formDevolucion").setVisible(false);
+            this.byId("inpMaterialDoc").setValue("");
+            this.byId("inpMaterialDocAnio").setValue("");
+            this._motivoNcDialog.open();
+        },
+
+        onMotivoNcChange: function (oEvent) {
+            const iSel = oEvent.getParameter("selectedIndex");
+            // 0 = Devolución → mostrar input MaterialDoc; 1 = Ajuste → ocultar
+            this.byId("formDevolucion").setVisible(iSel === 0);
+        },
+
+        onMotivoNcCancel: function () {
+            this._motivoNcDialog.close();
+            this._motivoNcCtx = null;
+        },
+
+        onMotivoNcConfirm: async function () {
+            const iSel = this.byId("rbgMotivoNc").getSelectedIndex();
+            if (iSel < 0) {
+                MessageToast.show(this._i18n("msgMotivoRequerido"));
+                return;
+            }
+            const sMotivo = iSel === 0 ? "1" : "2";  // 1=Devolución, 2=Ajuste
+            const sMatDoc = this.byId("inpMaterialDoc").getValue();
+            const sMatAnio = this.byId("inpMaterialDocAnio").getValue();
+            if (sMotivo === "1" && (!sMatDoc || !sMatAnio)) {
+                MessageToast.show(this._i18n("msgMaterialDocRequerido"));
+                return;
+            }
+
+            const oCtx = this._motivoNcCtx;
+            this._motivoNcDialog.close();
+            this._setBusy(true);
+            try {
+                // 1) PATCH del registro con motivo + material doc
+                await oCtx.setProperty("MotivoNc", sMotivo);
+                if (sMotivo === "1") {
+                    await oCtx.setProperty("MaterialDocRef", sMatDoc);
+                    await oCtx.setProperty("MaterialDocRefAnio", sMatAnio);
+                }
+                // El submitBatch es automático en el modelo OData V4 — esperamos
+                await oCtx.getModel().submitBatch(oCtx.getModel().getUpdateGroupId());
+
+                // 2) Invocar action Contabilizar
+                await oCtx.getModel().bindContext(
+                    NS + "Contabilizar(...)",
+                    oCtx
+                ).execute();
+                MessageToast.show(this._i18n("btnContabilizar") + " OK");
+                this._refreshTable();
+            } catch (oErr) {
+                MessageBox.error(this._getErrorText(oErr));
+            } finally {
+                this._setBusy(false);
+                this._motivoNcCtx = null;
+            }
         },
 
         // =====================================================================
@@ -635,7 +762,7 @@ sap.ui.define([
         },
 
         _resetButtons: function () {
-            ["btnReprocesar","btnRechazar","btnVerPdf","btnDocRef","btnPosiciones","btnMontosPend"]
+            ["btnReprocesar","btnContabilizar","btnRechazar","btnVerPdf","btnDocRef","btnPosiciones","btnMontosPend"]
                 .forEach(id => this.byId(id).setEnabled(false));
         },
 

@@ -160,6 +160,18 @@ define root view entity ZC_DTE_MONITOR
       @UI.fieldGroup: [{ qualifier: 'DocSapFacet', position: 70 }]
       FolioReferencia,
 
+      @UI.fieldGroup: [{ qualifier: 'DocSapFacet', position: 80 }]
+      MotivoNc,
+
+      @UI.fieldGroup: [{ qualifier: 'DocSapFacet', position: 90 }]
+      MaterialDocRef,
+
+      @UI.fieldGroup: [{ qualifier: 'DocSapFacet', position: 100 }]
+      MaterialDocRefAnio,
+
+      @UI.fieldGroup: [{ qualifier: 'DocSapFacet', position: 110 }]
+      DocFacturaOrigen,
+
       @UI.fieldGroup: [{ qualifier: 'LogFacet', position: 10 }]
       LogProcesamiento,
 

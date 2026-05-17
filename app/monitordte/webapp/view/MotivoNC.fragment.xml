@@ -1,0 +1,38 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:l="sap.ui.layout"
+    xmlns:f="sap.ui.layout.form"
+    xmlns:core="sap.ui.core">
+
+    <Dialog id="motivoNcDialog"
+            title="{i18n>dlgMotivoNcTitle}"
+            contentWidth="32rem"
+            class="sapUiResponsiveContentPadding">
+
+        <content>
+            <VBox class="sapUiSmallMargin">
+                <RadioButtonGroup id="rbgMotivoNc" columns="1" selectedIndex="-1" select=".onMotivoNcChange">
+                    <RadioButton id="rbDevolucion" text="{i18n>radDevolucion}"/>
+                    <RadioButton id="rbAjustePrecio" text="{i18n>radAjustePrecio}"/>
+                </RadioButtonGroup>
+
+                <f:SimpleForm id="formDevolucion"
+                              visible="false"
+                              editable="true"
+                              layout="ResponsiveGridLayout"
+                              class="sapUiSmallMarginTop">
+                    <Label text="{i18n>lblMaterialDoc}" required="true"/>
+                    <Input id="inpMaterialDoc" maxLength="10"/>
+
+                    <Label text="{i18n>lblMaterialDocAnio}" required="true"/>
+                    <Input id="inpMaterialDocAnio" maxLength="4" type="Number"/>
+                </f:SimpleForm>
+            </VBox>
+        </content>
+
+        <buttons>
+            <Button text="{i18n>btnConfirmar}" type="Emphasized" press=".onMotivoNcConfirm"/>
+            <Button text="{i18n>btnCancelar}" press=".onMotivoNcCancel"/>
+        </buttons>
+    </Dialog>
+</core:FragmentDefinition>

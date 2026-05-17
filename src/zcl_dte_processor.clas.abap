@@ -850,8 +850,9 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    " Buscar la factura previa en el historial de la OC
-    SELECT SINGLE SupplierInvoice
+    " Buscar la factura previa en el historial de la OC.
+    " Para Type=2 el campo PurchasingHistoryDocument contiene el N° de factura SAP.
+    SELECT SINGLE PurchasingHistoryDocument
       FROM I_PurchaseOrderHistoryAPI01
       WHERE PurchaseOrder                 = @is_dte-oc_ref
         AND ReferenceDocument             = @is_dte-factura_base_folio
@@ -1138,15 +1139,17 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    " 1) Facturas previas asociadas a la HES (Type=2 Cat=Q)
-    SELECT SupplierInvoice,
+    " 1) Facturas previas asociadas a la HES (Type=2 Cat=Q).
+    "    Para Type=2 PurchasingHistoryDocument contiene el N° de factura SAP;
+    "    ReferenceDocument apunta a la HES de origen.
+    SELECT PurchasingHistoryDocument,
            PurchaseOrderAmount,
            DebitCreditCode
       FROM I_PurchaseOrderHistoryAPI01
       WHERE PurchaseOrder                 = @iv_oc
         AND PurchasingHistoryDocumentType = '2'
         AND PurchasingHistoryCategory     = 'Q'
-        AND PurchasingHistoryDocument     = @iv_hes
+        AND ReferenceDocument             = @iv_hes
       INTO TABLE @DATA(lt_facturas).
 
     " 2) Para cada factura, sumar su valor con signo:

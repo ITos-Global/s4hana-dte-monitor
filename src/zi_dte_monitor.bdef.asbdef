@@ -10,9 +10,11 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
   create;
   update;
 
-  static factory action IngestFromXml parameter ZS_DTE_INGEST_XML [1];
+  static factory action IngestFromXml parameter ZS_DTE_INGEST_XML [1]
+    result [1] $self;
 
-  static factory action IngestFromSii parameter ZS_DTE_INGEST_SII [1];
+  static factory action IngestFromSii parameter ZS_DTE_INGEST_SII [1]
+    result [1] $self;
 
   " Re-validación masiva: sincroniza pendientes contra SAP y aplica grace period.
   static action RefrescarMasivo;

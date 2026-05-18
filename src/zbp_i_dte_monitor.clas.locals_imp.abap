@@ -154,14 +154,16 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " ¿Existe ya el registro?
-      SELECT SINGLE @abap_true FROM zdte_monitor
-        WHERE tipo_dte  = @ls_key_is-%param-TipoDte
-          AND folio     = @ls_key_is-%param-Folio
-          AND proveedor = @ls_key_is-%param-Proveedor
-        INTO @DATA(lv_exists_is).
+      " ¿Existe ya el registro? Usar READ ENTITIES (SELECT directo no permitido en behavior)
+      READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
+        ENTITY DteMonitor FIELDS ( Estado )
+        WITH VALUE #( ( %tky = VALUE #( TipoDte   = ls_key_is-%param-TipoDte
+                                         Folio     = ls_key_is-%param-Folio
+                                         Proveedor = ls_key_is-%param-Proveedor ) ) )
+        RESULT DATA(lt_exists_is)
+        FAILED DATA(lt_f_exists_is).
 
-      IF sy-subrc = 0.
+      IF lt_exists_is IS NOT INITIAL.
         " UPDATE: sólo FechaRecepcionSii
         MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
           ENTITY DteMonitor

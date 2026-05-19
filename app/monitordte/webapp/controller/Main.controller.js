@@ -91,7 +91,8 @@ sap.ui.define([
             this._setBusy(true);
             try {
                 const oModel = this.getView().getModel();
-                await oModel.bindContext("/" + NS + "RefrescarMasivo(...)").execute();
+                // RefrescarMasivo es bound a la coleccion DteMonitor (IsBound=true en metadata)
+                await oModel.bindContext("/DteMonitor/" + NS + "RefrescarMasivo(...)").execute();
                 this._refreshTable();
                 MessageToast.show(this._i18n("msgRefrescado"));
             } catch (oErr) {

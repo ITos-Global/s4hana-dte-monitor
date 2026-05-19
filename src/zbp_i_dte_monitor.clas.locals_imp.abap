@@ -612,19 +612,13 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
     DATA(lv_user_rm) = cl_abap_context_info=>get_user_technical_name( ).
     DATA(lv_date_rm) = cl_abap_context_info=>get_system_date( ).
 
-    " Sólo registros pendientes/por rechazar/no procesados
-    SELECT *
-      FROM zdte_monitor
-      WHERE estado = '01' OR estado = '04' OR estado = '05'
-      INTO TABLE @DATA(lt_rm).
+    " Sólo registros pendientes/por rechazar/no procesados.
+    " El SELECT vive en zcl_dte_processor para evitar BEHAVIOR_ILLEGAL_STATEMENT.
+    DATA(lt_rm) = zcl_dte_processor=>get_pending_records( ).
 
     DATA(lo_proc_rm) = NEW zcl_dte_processor( ).
 
     LOOP AT lt_rm INTO DATA(ls_rm).
-      DATA(ls_tky_rm) = VALUE zi_dte_monitor(
-        TipoDte   = ls_rm-tipo_dte
-        Folio     = ls_rm-folio
-        Proveedor = ls_rm-proveedor ).
 
       " (1) Sincronización: ¿existe doc contable en historial OC con este folio?
       "     Para Type=2, PurchasingHistoryDocument es el N° de factura SAP.

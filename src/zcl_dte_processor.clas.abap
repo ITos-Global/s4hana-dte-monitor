@@ -19,6 +19,13 @@ CLASS zcl_dte_processor DEFINITION
       IMPORTING iv_tipo_dte    TYPE numc3
       RETURNING VALUE(rv_ok)   TYPE abap_bool.
 
+    " Lectura masiva de registros pendientes para uso desde refrescar_masivo.
+    " Se expone aqui porque SELECT directo en zdte_monitor desde el behavior
+    " pool dispara BEHAVIOR_ILLEGAL_STATEMENT.
+    TYPES tt_zdte_monitor TYPE STANDARD TABLE OF zdte_monitor WITH DEFAULT KEY.
+    CLASS-METHODS get_pending_records
+      RETURNING VALUE(rt_records) TYPE tt_zdte_monitor.
+
     " Estructura pública con campos clave extraídos del XML del DTE.
     " Usada por el ingestor para crear el registro inicial en la tabla.
     TYPES: BEGIN OF ty_dte_meta,
@@ -589,6 +596,13 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       iv_tipo_dte = gc_tipo_dte_permitido-factura_compra OR
       iv_tipo_dte = gc_tipo_dte_permitido-nota_debito    OR
       iv_tipo_dte = gc_tipo_dte_permitido-nota_credito ).
+  ENDMETHOD.
+
+  METHOD get_pending_records.
+    SELECT *
+      FROM zdte_monitor
+      WHERE estado = '01' OR estado = '04' OR estado = '05'
+      INTO TABLE @rt_records.
   ENDMETHOD.
 
   METHOD validate_sociedad.

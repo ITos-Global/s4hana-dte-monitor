@@ -657,10 +657,19 @@ CLASS zcl_dte_processor IMPLEMENTATION.
 
   METHOD validate_referencia_xml.
     " Lógica del spec:
-    "  - Si OC ∧ (HES ∨ EM): ok
+    "  - NC tipo 61 / ND tipo 56: la validación clave es validate_factura_base,
+    "    no se requiere HES/EM aquí, se delega al paso siguiente.
+    "  - Facturas 33/34/46: necesita OC y (HES o EM).
     "  - Si faltan, evaluar si proveedor es de servicios generales → ok
     "  - Caso contrario, rechazar con mensaje específico.
     ev_ok = abap_false.
+
+    " NC/ND: bypass — la validación de su factura base se hace en validate_factura_base
+    IF is_dte-tipo_dte = '056' OR is_dte-tipo_dte = '061'.
+      ev_ok      = abap_true.
+      ev_mensaje = ''.
+      RETURN.
+    ENDIF.
 
     DATA(lv_oc_ok)  = xsdbool( is_dte-oc_ref  IS NOT INITIAL ).
     DATA(lv_hes_ok) = xsdbool( is_dte-hes_ref IS NOT INITIAL ).

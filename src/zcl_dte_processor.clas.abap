@@ -1048,7 +1048,9 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     DATA(lv_moneda) = COND waers( WHEN is_dte-moneda IS INITIAL THEN 'CLP'
                                   ELSE is_dte-moneda ).
 
-    MODIFY ENTITIES OF I_SupplierInvoiceTP
+    " IN LOCAL MODE necesario porque corremos dentro del context de una action
+    " del BO ZI_DTE_MONITOR; cross-BO modify sin LOCAL MODE viola RAP managed.
+    MODIFY ENTITIES OF I_SupplierInvoiceTP IN LOCAL MODE
       ENTITY SupplierInvoice
         EXECUTE Create
           FROM VALUE #( (

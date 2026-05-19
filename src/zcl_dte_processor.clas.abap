@@ -542,18 +542,19 @@ CLASS zcl_dte_processor IMPLEMENTATION.
         RAISE EXCEPTION NEW cx_abap_invalid_value( value = lx_xml->get_text( ) ).
     ENDTRY.
 
-    " Process references
+    " Process references — zero-pad numericos (OC/HES/EM) via ALPHA = IN
+    " para que matchee con SAP que los almacena padded (ej. 76 -> 0000000076).
     rs_dte-tiene_ref = abap_false.
     LOOP AT lt_refs INTO DATA(ls_ref).
       CASE ls_ref-tipo_doc.
         WHEN '801'.
-          rs_dte-oc_ref    = CONV ebeln( ls_ref-folio_ref ).
+          rs_dte-oc_ref    = |{ ls_ref-folio_ref ALPHA = IN }|.
           rs_dte-tiene_ref = abap_true.
         WHEN 'HES'.
-          rs_dte-hes_ref   = CONV belnr_d( ls_ref-folio_ref ).
+          rs_dte-hes_ref   = |{ ls_ref-folio_ref ALPHA = IN }|.
           rs_dte-tiene_ref = abap_true.
         WHEN '700' OR '701'.
-          rs_dte-em_ref    = CONV belnr_d( ls_ref-folio_ref ).
+          rs_dte-em_ref    = |{ ls_ref-folio_ref ALPHA = IN }|.
           rs_dte-tiene_ref = abap_true.
         WHEN '33' OR '34'.
           " Referencia a factura base (para NC tipo 61 y ND tipo 56)

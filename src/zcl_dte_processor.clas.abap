@@ -624,27 +624,28 @@ CLASS zcl_dte_processor IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_hes_items.
-    " Lectura de items de HES via I_ServiceEntrySheetItemAPI01. CLASS-METHOD
-    " para que corra fuera del context del BO (donde algunos SELECTs sobre
-    " CDS released podrian ser filtrados).
-    SELECT ServiceEntrySheet, ServiceEntrySheetItem,
-           PurchaseOrder, PurchaseOrderItem,
-           ConfirmedQuantity, QuantityUnit,
-           NetAmount, Currency
-      FROM I_ServiceEntrySheetItemAPI01
-      WHERE ServiceEntrySheet = @iv_hes
-      INTO TABLE @DATA(lt_raw).
+    " Lectura de items de HES. Tomamos PurchaseOrderItem desde
+    " I_PurchaseOrderHistoryAPI01 (que sí lo tiene poblado para Type=S Cat=0).
+    " La cantidad/monto los completamos con I_ServiceEntrySheetItemAPI01.
+    SELECT PurchaseOrder, PurchaseOrderItem,
+           PurchasingHistoryDocument, PurchasingHistoryDocumentItem,
+           PurchaseOrderAmount, DocumentCurrency
+      FROM I_PurchaseOrderHistoryAPI01
+      WHERE PurchasingHistoryDocument     = @iv_hes
+        AND PurchasingHistoryDocumentType = 'S'
+        AND PurchasingHistoryCategory     = '0'
+      INTO TABLE @DATA(lt_hist).
 
-    LOOP AT lt_raw INTO DATA(ls_r).
+    LOOP AT lt_hist INTO DATA(ls_h).
       APPEND VALUE #(
-        ses_number = ls_r-ServiceEntrySheet
-        ses_item   = ls_r-ServiceEntrySheetItem
-        po_number  = ls_r-PurchaseOrder
-        po_item    = ls_r-PurchaseOrderItem
-        quantity   = ls_r-ConfirmedQuantity
-        unit       = ls_r-QuantityUnit
-        amount     = ls_r-NetAmount
-        currency   = ls_r-Currency
+        ses_number = ls_h-PurchasingHistoryDocument
+        ses_item   = ls_h-PurchasingHistoryDocumentItem
+        po_number  = ls_h-PurchaseOrder
+        po_item    = ls_h-PurchaseOrderItem
+        quantity   = 1
+        unit       = 'EA'
+        amount     = ls_h-PurchaseOrderAmount
+        currency   = ls_h-DocumentCurrency
       ) TO rt_items.
     ENDLOOP.
   ENDMETHOD.

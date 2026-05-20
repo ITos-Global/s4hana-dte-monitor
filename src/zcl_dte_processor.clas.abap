@@ -994,6 +994,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
              quantity     TYPE menge_d,
              unit         TYPE meins,
              sheet_no     TYPE belnr_d,
+             sheet_item   TYPE numc5,
              item_amount  TYPE wrbtr,
              ref_doc      TYPE belnr_d,
              ref_doc_item TYPE numc4,
@@ -1027,6 +1028,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
           po_number   = ls_hi-po_number
           po_item     = ls_hi-po_item
           sheet_no    = ls_hi-ses_number
+          sheet_item  = ls_hi-ses_item
           quantity    = ls_hi-quantity
           unit        = ls_hi-unit
           item_amount = CONV wrbtr( ls_hi-amount )
@@ -1100,7 +1102,9 @@ CLASS zcl_dte_processor IMPLEMENTATION.
         po_number  = ls_local_it-po_number
         po_item    = ls_local_it-po_item
         ses_number = ls_local_it-sheet_no
-        ses_item   = CONV numc5( '00010' )
+        ses_item   = COND #( WHEN ls_local_it-sheet_item IS NOT INITIAL
+                              THEN ls_local_it-sheet_item
+                              ELSE CONV numc5( '00010' ) )
         quantity   = ls_local_it-quantity
         unit       = ls_local_it-unit
         amount     = ls_local_it-item_amount

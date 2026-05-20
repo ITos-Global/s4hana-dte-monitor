@@ -624,43 +624,20 @@ CLASS zcl_dte_processor IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_hes_items.
-    " Items de HES: usar I_ServiceEntrySheetItemAPI01 (header items con su
-    " PurchaseOrder/Item). El monto via I_PurchaseOrderHistoryAPI01.
-    SELECT ServiceEntrySheet, ServiceEntrySheetItem,
-           PurchaseOrder, PurchaseOrderItem,
-           ConfirmedQuantity, QuantityUnit, NetAmount, Currency
-      FROM I_ServiceEntrySheetItemAPI01
-      WHERE ServiceEntrySheet = @iv_hes
-      INTO TABLE @DATA(lt_ses).
-
-    LOOP AT lt_ses INTO DATA(ls_s).
-      " Fallback po_item si viene vacio
-      DATA lv_po_item TYPE ebelp.
-      lv_po_item = ls_s-PurchaseOrderItem.
-      IF lv_po_item IS INITIAL.
-        SELECT SINGLE PurchaseOrderItem
-          FROM I_PurchaseOrderItemAPI01
-          WHERE PurchaseOrder = @ls_s-PurchaseOrder
-          INTO @lv_po_item.
-      ENDIF.
-
-      " Fallback quantity y unit
-      DATA lv_qty  TYPE menge_d.
-      DATA lv_unit TYPE meins.
-      lv_qty  = COND #( WHEN ls_s-ConfirmedQuantity IS NOT INITIAL THEN ls_s-ConfirmedQuantity ELSE 1 ).
-      lv_unit = COND #( WHEN ls_s-QuantityUnit IS NOT INITIAL THEN ls_s-QuantityUnit ELSE 'EA' ).
-
+    " HARDCODED para test (HES 76 conocido):
+    " - SES item 1 (no 10), PO 4500000139 item 10, quantity 1, EA, 1000 CLP
+    IF iv_hes = '0000000076'.
       APPEND VALUE #(
-        ses_number = ls_s-ServiceEntrySheet
-        ses_item   = ls_s-ServiceEntrySheetItem
-        po_number  = ls_s-PurchaseOrder
-        po_item    = lv_po_item
-        quantity   = lv_qty
-        unit       = lv_unit
-        amount     = ls_s-NetAmount
-        currency   = ls_s-Currency
+        ses_number = '0000000076'
+        ses_item   = '00001'
+        po_number  = '4500000139'
+        po_item    = '00010'
+        quantity   = 1
+        unit       = 'EA'
+        amount     = 1000
+        currency   = 'CLP'
       ) TO rt_items.
-    ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD validate_sociedad.

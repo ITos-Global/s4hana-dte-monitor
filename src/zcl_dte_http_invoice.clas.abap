@@ -46,7 +46,7 @@ CLASS zcl_dte_http_invoice DEFINITION
     CONSTANTS gc_api_path TYPE string VALUE
       `/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice`.
 
-    CONSTANTS gc_comm_scenario   TYPE c LENGTH 30 VALUE 'SAP_COM_0046'.
+    CONSTANTS gc_comm_scenario   TYPE c LENGTH 30 VALUE 'SAP_COM_0057'.
     CONSTANTS gc_comm_service_id TYPE c LENGTH 40 VALUE 'API_SUPPLIERINVOICE_PROCESS_SRV_0001'.
 
     CLASS-METHODS build_json

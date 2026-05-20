@@ -112,7 +112,10 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
         DATA(lo_client) = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
         DATA(lo_req2) = lo_client->get_http_request( ).
         lo_req2->set_uri_path( gc_api_path ).
-        lo_req2->set_cookies( lt_cookies ).
+        " Propagar cookies (de a una, no hay set_cookies bulk)
+        LOOP AT lt_cookies INTO DATA(ls_ck).
+          lo_req2->set_cookie( name = ls_ck-name value = ls_ck-value ).
+        ENDLOOP.
         lo_req2->set_header_fields( VALUE #(
           ( name = 'Accept'       value = 'application/json' )
           ( name = 'Content-Type' value = 'application/json' )

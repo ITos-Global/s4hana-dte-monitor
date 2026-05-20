@@ -624,40 +624,41 @@ CLASS zcl_dte_processor IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_hes_items.
-    " Lectura de items de HES. Tomamos PurchaseOrderItem desde
-    " I_PurchaseOrderHistoryAPI01 (que sí lo tiene poblado para Type=S Cat=0).
-    " La cantidad/monto los completamos con I_ServiceEntrySheetItemAPI01.
-    SELECT PurchaseOrder, PurchaseOrderItem,
-           PurchasingHistoryDocument, PurchasingHistoryDocumentItem,
-           PurchaseOrderAmount, DocumentCurrency
-      FROM I_PurchaseOrderHistoryAPI01
-      WHERE PurchasingHistoryDocument     = @iv_hes
-        AND PurchasingHistoryDocumentType = 'S'
-        AND PurchasingHistoryCategory     = '0'
-      INTO TABLE @DATA(lt_hist).
+    " Items de HES: usar I_ServiceEntrySheetItemAPI01 (header items con su
+    " PurchaseOrder/Item). El monto via I_PurchaseOrderHistoryAPI01.
+    SELECT ServiceEntrySheet, ServiceEntrySheetItem,
+           PurchaseOrder, PurchaseOrderItem,
+           ConfirmedQuantity, QuantityUnit, NetAmount, Currency
+      FROM I_ServiceEntrySheetItemAPI01
+      WHERE ServiceEntrySheet = @iv_hes
+      INTO TABLE @DATA(lt_ses).
 
-    LOOP AT lt_hist INTO DATA(ls_h).
-      " Fallback si PurchaseOrderItem viene vacio del history: leer de I_PurchaseOrderItemAPI01
+    LOOP AT lt_ses INTO DATA(ls_s).
+      " Fallback po_item si viene vacio
       DATA lv_po_item TYPE ebelp.
-      IF ls_h-PurchaseOrderItem IS NOT INITIAL.
-        lv_po_item = ls_h-PurchaseOrderItem.
-      ELSE.
-        " Para HES, tomar un item de la OC asociada
+      lv_po_item = ls_s-PurchaseOrderItem.
+      IF lv_po_item IS INITIAL.
         SELECT SINGLE PurchaseOrderItem
           FROM I_PurchaseOrderItemAPI01
-          WHERE PurchaseOrder = @ls_h-PurchaseOrder
+          WHERE PurchaseOrder = @ls_s-PurchaseOrder
           INTO @lv_po_item.
       ENDIF.
 
+      " Fallback quantity y unit
+      DATA lv_qty  TYPE menge_d.
+      DATA lv_unit TYPE meins.
+      lv_qty  = COND #( WHEN ls_s-ConfirmedQuantity IS NOT INITIAL THEN ls_s-ConfirmedQuantity ELSE 1 ).
+      lv_unit = COND #( WHEN ls_s-QuantityUnit IS NOT INITIAL THEN ls_s-QuantityUnit ELSE 'EA' ).
+
       APPEND VALUE #(
-        ses_number = ls_h-PurchasingHistoryDocument
-        ses_item   = ls_h-PurchasingHistoryDocumentItem
-        po_number  = ls_h-PurchaseOrder
+        ses_number = ls_s-ServiceEntrySheet
+        ses_item   = ls_s-ServiceEntrySheetItem
+        po_number  = ls_s-PurchaseOrder
         po_item    = lv_po_item
-        quantity   = 1
-        unit       = 'EA'
-        amount     = ls_h-PurchaseOrderAmount
-        currency   = ls_h-DocumentCurrency
+        quantity   = lv_qty
+        unit       = lv_unit
+        amount     = ls_s-NetAmount
+        currency   = ls_s-Currency
       ) TO rt_items.
     ENDLOOP.
   ENDMETHOD.

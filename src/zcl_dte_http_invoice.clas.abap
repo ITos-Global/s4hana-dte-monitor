@@ -167,8 +167,10 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
       lv_items = lv_items && lv_item.
     ENDLOOP.
 
+    " SupplierInvoiceIsCreditMemo es Edm.String segun metadata, NO Edm.Boolean
+    " El patron SAP es: 'X' = es credit memo, '' = no es
     DATA(lv_credit) = COND string( WHEN is_header-is_credit_memo = abap_true
-                                    THEN 'true' ELSE 'false' ).
+                                    THEN 'X' ELSE '' ).
 
     " Folio sin espacios trailing (char20 -> trim)
     DATA(lv_folio_trim) = condense( CONV string( is_header-folio_sii ) ).
@@ -181,8 +183,8 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
       && |"DocumentCurrency":"{ is_header-currency }",|
       && |"SupplierInvoiceIDByInvcgParty":"{ lv_folio_trim }",|
       && |"SupplierInvoiceIsCreditMemo":"{ lv_credit }",|
-      && |"TaxIsCalculatedAutomatically":"false",|
-      && |"to_SupplierInvoiceItemPurOrdRef":\{"results":[{ lv_items }]\}|
+      && |"TaxIsCalculatedAutomatically":false,|
+      && |"to_SuplrInvcItemPurOrdRef":\{"results":[{ lv_items }]\}|
       && |\}|.
   ENDMETHOD.
 

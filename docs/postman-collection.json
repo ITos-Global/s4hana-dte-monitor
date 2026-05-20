@@ -1,0 +1,840 @@
+{
+  "info": {
+    "_postman_id": "d02ca0c2-77d8-4a10-82e6-706dc9308da2",
+    "name": "Monitor DTE Proveedor — Tests",
+    "description": "## Colección de pruebas Monitor DTE Proveedor\n\n### Pasos iniciales\n1. Abrir la pestaña **Variables** de la colección y completar los campos marcados con ★ con datos reales de tu sistema (RUTs, OC, HES, etc.).\n2. Configurar **Authorization** a nivel colección (Basic Auth con usuario/password del Communication User SAP).\n3. Ejecutar primero **Setup ▸ Fetch CSRF Token** — captura el token y lo guarda en `{{csrfToken}}` automáticamente.\n4. A partir de ahí, todos los POST/PATCH usan el token automáticamente.\n\n### Estructura\n- **0. Setup** — fetch CSRF + metadata\n- **1. Queries** — listar / buscar registros existentes\n- **2. Ingestión** — IngestFromXml, IngestFromSii, Create directo\n- **3. Bound Actions** — Reprocesar, Rechazar, Contabilizar, IndicarDocReferencia, IndicarPosiciones\n- **4. Unbound Actions** — RefrescarMasivo\n- **5. NC Pop-up flow** — PATCH MotivoNc + Contabilizar\n\n★ = valor de NEGOCIO que debés ajustar.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{user}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{password}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Setup ▸ Fetch CSRF Token",
+          "request": {
+            "method": "HEAD",
+            "header": [
+              {
+                "key": "x-csrf-token",
+                "value": "fetch"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "★ EJECUTAR PRIMERO. Obtiene el x-csrf-token y lo guarda automáticamente en la variable {{csrfToken}}, requerida para todos los POST/PATCH.\n\nUsa HEAD sobre la raíz del servicio (más ligero que GET y no requiere Accept específico)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Captura token CSRF y lo guarda como variable de colección",
+                  "const token = pm.response.headers.get('x-csrf-token');",
+                  "if (token) {",
+                  "    pm.collectionVariables.set('csrfToken', token);",
+                  "    console.log('CSRF token capturado:', token);",
+                  "} else {",
+                  "    console.warn('No se obtuvo CSRF token — revisar credenciales');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verificar metadata",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/xml"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/$metadata",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "$metadata"
+              ]
+            },
+            "description": "Verifica que el servicio responde y que las entity sets esperadas existen. $metadata se sirve en XML."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Queries",
+      "item": [
+        {
+          "name": "Listar DTE (top 50)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor?$top=50&$orderby=FechaRecepcionSii desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor?$top=50&$orderby=FechaRecepcionSii desc"
+              ]
+            },
+            "description": "Devuelve los 50 registros más recientes ordenados por FE_RECEP."
+          }
+        },
+        {
+          "name": "Buscar por llave",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')"
+              ]
+            },
+            "description": "Trae un registro específico por TipoDte+Folio+Proveedor."
+          }
+        },
+        {
+          "name": "Buscar por estado (Por Rechazar)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor?$filter=Estado eq '04'&$top=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor?$filter=Estado eq '04'&$top=50"
+              ]
+            },
+            "description": "Lista registros en estado Por Rechazar."
+          }
+        },
+        {
+          "name": "Buscar por estado (Validado)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor?$filter=Estado eq '02'&$top=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor?$filter=Estado eq '02'&$top=50"
+              ]
+            },
+            "description": "Lista registros en estado Validado (listos para contabilizar)."
+          }
+        },
+        {
+          "name": "Buscar por proveedor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor?$filter=Proveedor eq '{{proveedorRut}}'",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor?$filter=Proveedor eq '{{proveedorRut}}'"
+              ]
+            },
+            "description": "Filtra por RUT de proveedor."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Ingestión",
+      "item": [
+        {
+          "name": "IngestFromXml — desde correo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor/com.sap.gateway.srvd.zui_dte_monitor.v0001.IngestFromXml",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor",
+                "com.sap.gateway.srvd.zui_dte_monitor.v0001.IngestFromXml"
+              ]
+            },
+            "description": "★ Simula la recepción del DTE desde la casilla de correo.\n\nPasa el XML completo. El parser extrae:\n- TipoDte, Folio, RUT emisor, RUT receptor\n- Montos\n- Referencias (OC=801, HES, EM=700/701, factura base=33/34)\n\n**Pre-request script**: arma el body resolviendo placeholders del xmlDte y haciendo JSON-escape de las comillas. Editá el XML cambiando la variable `xmlDte` o las variables que referencia.\n\n**Resultado esperado**: registro en estado '01' SIN FechaRecepcionSii.\nEl procesamiento se dispara cuando luego llegue FE_RECEP via SII.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"XmlData\": \"PLACEHOLDER_REPLACED_BY_PRE_REQUEST\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Resolver placeholders nested en xmlDte y JSON-escapar el XML",
+                  "const vars = pm.collectionVariables;",
+                  "let xml = vars.get('xmlDte') || '';",
+                  "const placeholders = [",
+                  "  'folio', 'fechaDocumento', 'proveedorRut', 'sociedadRut',",
+                  "  'montoNeto', 'iva', 'montoTotal', 'ordenCompra', 'hes'",
+                  "];",
+                  "placeholders.forEach(k => {",
+                  "  const val = vars.get(k) || '';",
+                  "  xml = xml.split('{{' + k + '}}').join(val);",
+                  "});",
+                  "// Reemplaza el body con el XML correctamente escapado dentro del JSON",
+                  "pm.request.body.raw = JSON.stringify({ XmlData: xml });",
+                  "console.log('Body XML inyectado, longitud:', xml.length);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "IngestFromSii — desde registro compras",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor/com.sap.gateway.srvd.zui_dte_monitor.v0001.IngestFromSii",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor",
+                "com.sap.gateway.srvd.zui_dte_monitor.v0001.IngestFromSii"
+              ]
+            },
+            "description": "★ Simula la sincronización con el registro de compras del SII.\n\n**UPSERT**: si la llave ya existe (vino primero por XML), solo actualiza FechaRecepcionSii.\nSi no existe, crea un registro nuevo en '01' con FE_RECEP cargada.\n\nAl setear FE_RECEP, la determination AutoProcess dispara → corre validaciones → estado pasa a '02' o '04'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"TipoDte\": \"{{tipoDte}}\",\n  \"Folio\": \"{{folio}}\",\n  \"Proveedor\": \"{{proveedorRut}}\",\n  \"Sociedad\": \"{{sociedadRut}}\",\n  \"FechaRecepcionSii\": \"{{fechaRecepcionSii}}\",\n  \"FechaDocumento\": \"{{fechaDocumento}}\",\n  \"Moneda\": \"{{moneda}}\",\n  \"MontoTotal\": \"{{montoTotal}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create directo (bypass ingestor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor"
+              ]
+            },
+            "description": "Crea el registro directamente sin pasar por los ingestores.\nÚtil para tests manuales donde controlás todos los campos.\n**NO** ejecuta filtro de tipo permitido en el create.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"TipoDte\": \"{{tipoDte}}\",\n  \"Folio\": \"{{folio}}\",\n  \"Proveedor\": \"{{proveedorRut}}\",\n  \"Sociedad\": \"{{sociedadRut}}\",\n  \"FechaDocumento\": \"{{fechaDocumento}}\",\n  \"FechaRecepcionSii\": \"{{fechaRecepcionSii}}\",\n  \"Moneda\": \"{{moneda}}\",\n  \"MontoNeto\": \"{{montoNeto}}\",\n  \"IvaRecuperable\": \"{{iva}}\",\n  \"TotalDocumento\": \"{{montoTotal}}\",\n  \"OrdenCompra\": \"{{ordenCompra}}\",\n  \"HojaEntradaServicio\": \"{{hes}}\",\n  \"Estado\": \"01\",\n  \"XmlData\": \"{{xmlDte}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Bound Actions",
+      "item": [
+        {
+          "name": "Reprocesar (volver a '01' y revalidar)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')/com.sap.gateway.srvd.zui_dte_monitor.v0001.Reprocesar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')",
+                "com.sap.gateway.srvd.zui_dte_monitor.v0001.Reprocesar"
+              ]
+            },
+            "description": "Vuelve el estado a '01' y dispara AutoProcess para re-validar. Útil cuando se corrigió un dato maestro en SAP.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Rechazar manualmente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')/com.sap.gateway.srvd.zui_dte_monitor.v0001.Rechazar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')",
+                "com.sap.gateway.srvd.zui_dte_monitor.v0001.Rechazar"
+              ]
+            },
+            "description": "Marca el DTE como '03' Rechazado con un motivo libre.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Motivo\": \"Raz\\u00f3n de rechazo de prueba\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Contabilizar (estado '02' → '06')",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')/com.sap.gateway.srvd.zui_dte_monitor.v0001.Contabilizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')",
+                "com.sap.gateway.srvd.zui_dte_monitor.v0001.Contabilizar"
+              ]
+            },
+            "description": "Dispara el posting a SAP. **Pre-condición**: el registro debe estar en estado '02' Validado.\n\nSi es NC tipo 61 de materiales (con EM), primero debés haber hecho PATCH al registro con MotivoNc + MaterialDocRef (ver carpeta '5. NC Pop-up flow').",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "IndicarDocReferencia (corregir OC/HES/EM)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')/com.sap.gateway.srvd.zui_dte_monitor.v0001.IndicarDocReferencia",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')",
+                "com.sap.gateway.srvd.zui_dte_monitor.v0001.IndicarDocReferencia"
+              ]
+            },
+            "description": "Habilitado solo en estado '04'. Setea OC/HES/EM manualmente y vuelve a '01' para reprocesar.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"OrdenCompra\": \"{{ordenCompra}}\",\n  \"HojaEntradaServicio\": \"{{hes}}\",\n  \"EntradaMercancia\": \"{{em}}\",\n  \"AnioEntradaMercancia\": \"2026\",\n  \"FolioReferencia\": \"{{folioFacturaBase}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "IndicarPosiciones",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')/com.sap.gateway.srvd.zui_dte_monitor.v0001.IndicarPosiciones",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')",
+                "com.sap.gateway.srvd.zui_dte_monitor.v0001.IndicarPosiciones"
+              ]
+            },
+            "description": "Confirma una posición específica del DTE (uso interno).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Posicion\": \"00010\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Unbound Actions",
+      "item": [
+        {
+          "name": "RefrescarMasivo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor/com.sap.gateway.srvd.zui_dte_monitor.v0001.RefrescarMasivo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor",
+                "com.sap.gateway.srvd.zui_dte_monitor.v0001.RefrescarMasivo"
+              ]
+            },
+            "description": "Sincronización masiva. Para cada registro en '01'/'04'/'05':\n1. Si existe doc contable en SAP (Type=2 ReferenceDocument=Folio) → estado '06'.\n2. Si '04' con dias_pend ≥ 7 → estado '03' (Rechazado por grace period).\n3. Si nada aplica → re-llamar process_dte.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. NC Pop-up flow",
+      "item": [
+        {
+          "name": "Paso A — PATCH motivo Devolución",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')"
+              ]
+            },
+            "description": "Equivale al pop-up del UI cuando el usuario elige 'Devolución de Mercancía'.\nSetea MotivoNc='1' + MaterialDocRef + año. **Pre-condición**: registro en '02' con TipoDte='061' y EM cargada.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"MotivoNc\": \"1\",\n  \"MaterialDocRef\": \"{{materialDocRef}}\",\n  \"MaterialDocRefAnio\": \"{{materialDocRefAnio}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Paso A — PATCH motivo Ajuste Precio",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')"
+              ]
+            },
+            "description": "Equivale al pop-up con 'Ajuste de Precio'. Solo graba MotivoNc='2'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"MotivoNc\": \"2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Paso B — Contabilizar NC",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-csrf-token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')/com.sap.gateway.srvd.zui_dte_monitor.v0001.Contabilizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "DteMonitor(TipoDte='{{tipoDte}}',Folio='{{folio}}',Proveedor='{{proveedorRut}}')",
+                "com.sap.gateway.srvd.zui_dte_monitor.v0001.Contabilizar"
+              ]
+            },
+            "description": "Tras el PATCH anterior, dispara la contabilización. El processor usa MotivoNc para diferenciar la lógica.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://my419159.s4hana.cloud.sap/sap/opu/odata4/sap/zui_dte_monitor_o4/srvd/sap/zui_dte_monitor/0001",
+      "type": "string"
+    },
+    {
+      "key": "user",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "csrfToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cookies",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tipoDte",
+      "value": "033",
+      "type": "string"
+    },
+    {
+      "key": "folio",
+      "value": "1234009",
+      "type": "string"
+    },
+    {
+      "key": "proveedorRut",
+      "value": "76543210-9",
+      "type": "string"
+    },
+    {
+      "key": "sociedadRut",
+      "value": "76188363-1",
+      "type": "string"
+    },
+    {
+      "key": "ordenCompra",
+      "value": "4500012345",
+      "type": "string"
+    },
+    {
+      "key": "hes",
+      "value": "1000000123",
+      "type": "string"
+    },
+    {
+      "key": "em",
+      "value": "5000000456",
+      "type": "string"
+    },
+    {
+      "key": "materialDocRef",
+      "value": "5000000999",
+      "type": "string"
+    },
+    {
+      "key": "materialDocRefAnio",
+      "value": "2026",
+      "type": "string"
+    },
+    {
+      "key": "folioFacturaBase",
+      "value": "1234000",
+      "type": "string"
+    },
+    {
+      "key": "fechaDocumento",
+      "value": "2026-05-10",
+      "type": "string"
+    },
+    {
+      "key": "fechaRecepcionSii",
+      "value": "2026-05-17",
+      "type": "string"
+    },
+    {
+      "key": "moneda",
+      "value": "CLP",
+      "type": "string"
+    },
+    {
+      "key": "montoTotal",
+      "value": "1785000",
+      "type": "string"
+    },
+    {
+      "key": "montoNeto",
+      "value": "1500000",
+      "type": "string"
+    },
+    {
+      "key": "iva",
+      "value": "285000",
+      "type": "string"
+    },
+    {
+      "key": "xmlDte",
+      "value": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><DTE><Encabezado><IdDoc><TipoDTE>33</TipoDTE><Folio>{{folio}}</Folio><FchEmis>{{fechaDocumento}}</FchEmis></IdDoc><Emisor><RUTEmisor>{{proveedorRut}}</RUTEmisor><RznSoc>RAZON SOCIAL PROVEEDOR</RznSoc></Emisor><Receptor><RUTRecep>{{sociedadRut}}</RUTRecep><RznSocRecep>FENIX GOLD S.A.</RznSocRecep></Receptor><Totales><MntNeto>{{montoNeto}}</MntNeto><TasaIVA>19</TasaIVA><IVA>{{iva}}</IVA><MntTotal>{{montoTotal}}</MntTotal></Totales></Encabezado><Referencia><NroLinRef>1</NroLinRef><TpoDocRef>801</TpoDocRef><FolioRef>{{ordenCompra}}</FolioRef></Referencia><Referencia><NroLinRef>2</NroLinRef><TpoDocRef>HES</TpoDocRef><FolioRef>{{hes}}</FolioRef></Referencia></DTE>",
+      "type": "string"
+    }
+  ]
+}

@@ -77,22 +77,22 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
     rs_result-ok = abap_false.
 
     TRY.
-        " Obtener destination via Communication Arrangement ZSD_DTE_MONITOR
-        " (outbound custom scenario sin service_id explicito).
+        " Obtener destination via Communication Arrangement ZSD_DTE_MONITOR.
         DATA(lo_dest) = cl_http_destination_provider=>create_by_comm_arrangement(
                           comm_scenario = gc_comm_scenario ).
-        DATA(lo_client) = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
 
-        " --- Fetch CSRF ---
-        DATA(lo_req) = lo_client->get_http_request( ).
+        " --- Fetch CSRF (client #1) ---
+        DATA(lo_client_csrf) = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
+        DATA(lo_req) = lo_client_csrf->get_http_request( ).
         lo_req->set_uri_path( gc_api_path ).
-        lo_req->set_query( '$top=0' ).
         lo_req->set_header_fields( VALUE #(
           ( name = 'x-csrf-token' value = 'fetch' )
           ( name = 'Accept'       value = 'application/json' )
         ) ).
-        DATA(lo_resp_csrf) = lo_client->execute( if_web_http_client=>get ).
+        DATA(lo_resp_csrf) = lo_client_csrf->execute( if_web_http_client=>get ).
         DATA(lt_hdr) = lo_resp_csrf->get_header_fields( ).
+        DATA(lt_cookies) = lo_resp_csrf->get_cookies( ).
+        lo_client_csrf->close( ).
 
         DATA lv_csrf TYPE string.
         LOOP AT lt_hdr INTO DATA(ls_h).
@@ -103,16 +103,16 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
         ENDLOOP.
 
         IF lv_csrf IS INITIAL.
-          rs_result-message = 'No se pudo obtener CSRF token. Revisar Communication Arrangement SAP_COM_0046.'.
+          rs_result-message = 'No se pudo obtener CSRF token. Revisar Communication Arrangement ZSD_DTE_MONITOR.'.
           RETURN.
         ENDIF.
 
-        " --- POST factura ---
+        " --- POST factura (client #2, fresh) ---
         DATA(lv_json) = build_json( is_header ).
-
+        DATA(lo_client) = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
         DATA(lo_req2) = lo_client->get_http_request( ).
         lo_req2->set_uri_path( gc_api_path ).
-        lo_req2->set_query( `` ).   " limpiar el $top=0 del CSRF fetch
+        lo_req2->set_cookies( lt_cookies ).
         lo_req2->set_header_fields( VALUE #(
           ( name = 'Accept'       value = 'application/json' )
           ( name = 'Content-Type' value = 'application/json' )

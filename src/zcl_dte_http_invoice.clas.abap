@@ -239,8 +239,9 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
     " Convierte dats (YYYYMMDD) a milisegundos epoch (formato OData V2 /Date(ms)/).
     " Aprovecha la sustracción nativa de dats que devuelve la diferencia en dias.
     CONSTANTS lc_epoch_base TYPE dats VALUE '19700101'.
-    DATA(lv_days)  = CONV i( iv_date - lc_epoch_base ).
-    DATA(lv_ms_p)  = CONV p( lv_days ) * 86400000.
+    DATA(lv_days) = CONV i( iv_date - lc_epoch_base ).
+    DATA lv_ms_p  TYPE p LENGTH 12.
+    lv_ms_p = lv_days * 86400000.
     rv_ms = |{ lv_ms_p }|.
   ENDMETHOD.
 

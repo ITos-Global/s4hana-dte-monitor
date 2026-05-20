@@ -642,11 +642,10 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       IF ls_h-PurchaseOrderItem IS NOT INITIAL.
         lv_po_item = ls_h-PurchaseOrderItem.
       ELSE.
-        " Para HES, tomar el primer item de la OC asociada
+        " Para HES, tomar un item de la OC asociada
         SELECT SINGLE PurchaseOrderItem
           FROM I_PurchaseOrderItemAPI01
           WHERE PurchaseOrder = @ls_h-PurchaseOrder
-          ORDER BY PurchaseOrderItem
           INTO @lv_po_item.
       ENDIF.
 

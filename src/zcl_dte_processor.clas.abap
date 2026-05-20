@@ -982,15 +982,36 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       ENDLOOP.
 
     ELSEIF is_dte-hes_ref IS NOT INITIAL.
-      " HES: un único ítem de factura referenciando la hoja de servicio completa
-      APPEND VALUE #(
-        cid         = |ITEM{ lv_cnt }|
-        item_no     = CONV numc5( lv_cnt )
-        po_number   = is_dte-oc_ref
-        sheet_no    = is_dte-hes_ref
-        item_amount = CONV wrbtr( is_dte-monto_total )
-      ) TO lt_items.
-      lv_cnt += 1.
+      " HES: una línea por cada posición de la HES, recuperando los PurchaseOrderItem
+      " desde I_PurchaseOrderHistoryAPI01 (necesarios para que el API SAP no rechace
+      " con "Purchase order item ... 00000 does not exist").
+      DATA(lt_hes_pos) = get_pendiente_hes(
+        iv_oc  = is_dte-oc_ref
+        iv_hes = is_dte-hes_ref ).
+
+      LOOP AT lt_hes_pos INTO DATA(ls_hes_pos).
+        APPEND VALUE #(
+          cid         = |ITEM{ lv_cnt }|
+          item_no     = CONV numc5( lv_cnt )
+          po_number   = ls_hes_pos-purchase_order
+          po_item     = ls_hes_pos-purchase_order_item
+          sheet_no    = ls_hes_pos-service_entry_sheet
+          item_amount = CONV wrbtr( ls_hes_pos-purchase_order_amount )
+        ) TO lt_items.
+        lv_cnt += 1.
+      ENDLOOP.
+
+      " Fallback: si get_pendiente_hes no devolvió posiciones, usar la HES sin item
+      IF lt_items IS INITIAL.
+        APPEND VALUE #(
+          cid         = |ITEM{ lv_cnt }|
+          item_no     = CONV numc5( lv_cnt )
+          po_number   = is_dte-oc_ref
+          sheet_no    = is_dte-hes_ref
+          item_amount = CONV wrbtr( is_dte-monto_total )
+        ) TO lt_items.
+        lv_cnt += 1.
+      ENDIF.
 
     ELSEIF is_dte-em_ref IS NOT INITIAL.
       " ítems desde I_MaterialDocumentItem_2 (MSEG)

@@ -47,7 +47,7 @@ CLASS zcl_dte_http_invoice DEFINITION
       `/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice`.
 
     CONSTANTS gc_comm_scenario   TYPE c LENGTH 30 VALUE 'SAP_COM_0057'.
-    CONSTANTS gc_comm_service_id TYPE c LENGTH 40 VALUE 'API_SUPPLIERINVOICE_PROCESS_SRV_0001'.
+    CONSTANTS gc_comm_service_id TYPE c LENGTH 40 VALUE 'API_SUPPLIERINVOICE_PROC_SRV_0001_IWSG'.
 
     CLASS-METHODS build_json
       IMPORTING is_header      TYPE ty_header
@@ -77,10 +77,10 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
     rs_result-ok = abap_false.
 
     TRY.
-        " Obtener destination via Communication Arrangement (SAP_COM_0057).
-        " Sin service_id explicito para que use el inbound default del scenario.
+        " Obtener destination via Communication Arrangement (SAP_COM_0057)
         DATA(lo_dest) = cl_http_destination_provider=>create_by_comm_arrangement(
-                          comm_scenario = gc_comm_scenario ).
+                          comm_scenario = gc_comm_scenario
+                          service_id    = gc_comm_service_id ).
         DATA(lo_client) = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
 
         " --- Fetch CSRF ---

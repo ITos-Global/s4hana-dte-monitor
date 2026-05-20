@@ -112,6 +112,7 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
 
         DATA(lo_req2) = lo_client->get_http_request( ).
         lo_req2->set_uri_path( gc_api_path ).
+        lo_req2->set_query( `` ).   " limpiar el $top=0 del CSRF fetch
         lo_req2->set_header_fields( VALUE #(
           ( name = 'Accept'       value = 'application/json' )
           ( name = 'Content-Type' value = 'application/json' )

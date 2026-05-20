@@ -26,6 +26,23 @@ CLASS zcl_dte_processor DEFINITION
     CLASS-METHODS get_pending_records
       RETURNING VALUE(rt_records) TYPE tt_zdte_monitor.
 
+    " Items de una HES con su OC item (necesario para el header API supplier invoice)
+    TYPES: BEGIN OF ty_hes_item,
+             ses_number TYPE char10,
+             ses_item   TYPE numc5,
+             po_number  TYPE ebeln,
+             po_item    TYPE ebelp,
+             quantity   TYPE menge_d,
+             unit       TYPE meins,
+             amount     TYPE p LENGTH 15 DECIMALS 2,
+             currency   TYPE waers,
+           END OF ty_hes_item.
+    TYPES tt_hes_items TYPE STANDARD TABLE OF ty_hes_item WITH DEFAULT KEY.
+
+    CLASS-METHODS get_hes_items
+      IMPORTING iv_hes        TYPE char10
+      RETURNING VALUE(rt_items) TYPE tt_hes_items.
+
     " Estructura pública con campos clave extraídos del XML del DTE.
     " Usada por el ingestor para crear el registro inicial en la tabla.
     TYPES: BEGIN OF ty_dte_meta,
@@ -606,6 +623,32 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       INTO TABLE @rt_records.
   ENDMETHOD.
 
+  METHOD get_hes_items.
+    " Lectura de items de HES via I_ServiceEntrySheetItemAPI01. CLASS-METHOD
+    " para que corra fuera del context del BO (donde algunos SELECTs sobre
+    " CDS released podrian ser filtrados).
+    SELECT ServiceEntrySheet, ServiceEntrySheetItem,
+           PurchaseOrder, PurchaseOrderItem,
+           ConfirmedQuantity, QuantityUnit,
+           NetAmount, Currency
+      FROM I_ServiceEntrySheetItemAPI01
+      WHERE ServiceEntrySheet = @iv_hes
+      INTO TABLE @DATA(lt_raw).
+
+    LOOP AT lt_raw INTO DATA(ls_r).
+      APPEND VALUE #(
+        ses_number = ls_r-ServiceEntrySheet
+        ses_item   = ls_r-ServiceEntrySheetItem
+        po_number  = ls_r-PurchaseOrder
+        po_item    = ls_r-PurchaseOrderItem
+        quantity   = ls_r-ConfirmedQuantity
+        unit       = ls_r-QuantityUnit
+        amount     = ls_r-NetAmount
+        currency   = ls_r-Currency
+      ) TO rt_items.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD validate_sociedad.
     " Resuelve RUT receptor (iv_rut_sociedad) → CompanyCode SAP via I_AddlCompanyCodeInformation
     ev_ok    = abap_false.
@@ -982,30 +1025,20 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       ENDLOOP.
 
     ELSEIF is_dte-hes_ref IS NOT INITIAL.
-      " HES: una línea por cada item de la HES. Recuperar PurchaseOrderItem desde
-      " I_ServiceEntrySheetItemAPI01 (mas confiable que I_PurchaseOrderHistoryAPI01).
-      SELECT ServiceEntrySheet,
-             ServiceEntrySheetItem,
-             PurchaseOrder,
-             PurchaseOrderItem,
-             ConfirmedQuantity,
-             QuantityUnit,
-             NetAmount,
-             Currency
-        FROM I_ServiceEntrySheetItemAPI01
-        WHERE ServiceEntrySheet = @is_dte-hes_ref
-        INTO TABLE @DATA(lt_ses_items).
+      " HES: una línea por cada item de la HES. Lookup via helper class-method
+      " (corre fuera del BO context).
+      DATA(lt_hes_items) = zcl_dte_processor=>get_hes_items( is_dte-hes_ref ).
 
-      LOOP AT lt_ses_items INTO DATA(ls_ses_it).
+      LOOP AT lt_hes_items INTO DATA(ls_hi).
         APPEND VALUE #(
           cid         = |ITEM{ lv_cnt }|
           item_no     = CONV numc5( lv_cnt )
-          po_number   = ls_ses_it-PurchaseOrder
-          po_item     = ls_ses_it-PurchaseOrderItem
-          sheet_no    = ls_ses_it-ServiceEntrySheet
-          quantity    = ls_ses_it-ConfirmedQuantity
-          unit        = ls_ses_it-QuantityUnit
-          item_amount = CONV wrbtr( ls_ses_it-NetAmount )
+          po_number   = ls_hi-po_number
+          po_item     = ls_hi-po_item
+          sheet_no    = ls_hi-ses_number
+          quantity    = ls_hi-quantity
+          unit        = ls_hi-unit
+          item_amount = CONV wrbtr( ls_hi-amount )
         ) TO lt_items.
         lv_cnt += 1.
       ENDLOOP.

@@ -155,9 +155,9 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
         && |"PurchaseOrderItem":"{ ls_it-po_item }",|
         && |"ServiceEntrySheet":"{ ls_it-ses_number }",|
         && |"ServiceEntrySheetItem":"{ ls_it-ses_item }",|
-        && |"QuantityInPurchaseOrderUnit":"{ ls_it-quantity }",|
+        && |"QuantityInPurchaseOrderUnit":"{ ls_it-quantity DECIMALS = 3 NUMBER = RAW }",|
         && |"PurchaseOrderQuantityUnit":"{ ls_it-unit }",|
-        && |"SupplierInvoiceItemAmount":"{ ls_it-amount }",|
+        && |"SupplierInvoiceItemAmount":"{ ls_it-amount DECIMALS = 2 NUMBER = RAW }",|
         && |"DocumentCurrency":"{ ls_it-currency }"|
         && |\}|.
 
@@ -170,13 +170,16 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
     DATA(lv_credit) = COND string( WHEN is_header-is_credit_memo = abap_true
                                     THEN 'true' ELSE 'false' ).
 
+    " Folio sin espacios trailing (char20 -> trim)
+    DATA(lv_folio_trim) = condense( CONV string( is_header-folio_sii ) ).
+
     rv_json = |\{|
       && |"CompanyCode":"{ is_header-company_code }",|
       && |"DocumentDate":"/Date({ date_to_epoch_ms( is_header-document_date ) })/",|
       && |"PostingDate":"/Date({ date_to_epoch_ms( is_header-posting_date ) })/",|
-      && |"InvoiceGrossAmount":"{ is_header-gross_amount }",|
+      && |"InvoiceGrossAmount":"{ is_header-gross_amount DECIMALS = 2 NUMBER = RAW }",|
       && |"DocumentCurrency":"{ is_header-currency }",|
-      && |"SupplierInvoiceIDByInvcgParty":"{ is_header-folio_sii }",|
+      && |"SupplierInvoiceIDByInvcgParty":"{ lv_folio_trim }",|
       && |"SupplierInvoiceIsCreditMemo":{ lv_credit },|
       && |"TaxIsCalculatedAutomatically":false,|
       && |"to_SupplierInvoiceItemPurOrdRef":\{"results":[{ lv_items }]\}|
@@ -246,7 +249,8 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
     DATA(lv_days) = CONV i( iv_date - lc_epoch_base ).
     DATA lv_ms_p  TYPE p LENGTH 12.
     lv_ms_p = lv_days * 86400000.
-    rv_ms = |{ lv_ms_p }|.
+    " NUMBER = RAW evita el formato locale (puntos como sep. miles, coma decimal)
+    rv_ms = |{ lv_ms_p NUMBER = RAW }|.
   ENDMETHOD.
 
 ENDCLASS.

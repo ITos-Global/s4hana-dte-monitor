@@ -113,7 +113,10 @@ CLASS zcl_dte_processor DEFINITION
         ev_prov_sap    TYPE zdte_monitor-prov_sap
         ev_year_em     TYPE zdte_monitor-year_em
         ev_doc_fact    TYPE zdte_monitor-doc_fact
-        ev_year_fact   TYPE zdte_monitor-year_fact.
+        ev_year_fact   TYPE zdte_monitor-year_fact
+        ev_oc          TYPE zdte_monitor-oc
+        ev_hes         TYPE zdte_monitor-hes
+        ev_em          TYPE zdte_monitor-em.
 
     " Posting separado de la validación. Se invoca desde la action Contabilizar
     " cuando el usuario presiona el botón en el monitor (estado debe ser '02').
@@ -288,6 +291,9 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     ev_year_em   = ''.
     ev_doc_fact  = ''.
     ev_year_fact = ''.
+    ev_oc        = ''.
+    ev_hes       = ''.
+    ev_em        = ''.
 
     " 0) Tipo DTE permitido
     IF is_tipo_dte_permitido( iv_tipo_dte ) = abap_false.
@@ -304,6 +310,11 @@ CLASS zcl_dte_processor IMPLEMENTATION.
         ev_log    = |Error al parsear XML del DTE: { lx->get_text( ) }|.
         RETURN.
     ENDTRY.
+
+    " Documentos de referencia: salen del XML aunque la validación falle.
+    ev_oc  = ls_dte-oc_ref.
+    ev_hes = ls_dte-hes_ref.
+    ev_em  = ls_dte-em_ref.
 
     DATA lv_ok  TYPE abap_bool.
     DATA lv_msg TYPE string.

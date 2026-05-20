@@ -228,6 +228,9 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
       DATA lv_year_em_ap  TYPE zdte_monitor-year_em.
       DATA lv_doc_fact_ap TYPE zdte_monitor-doc_fact.
       DATA lv_year_fc_ap  TYPE zdte_monitor-year_fact.
+      DATA lv_oc_ap       TYPE zdte_monitor-oc.
+      DATA lv_hes_ap      TYPE zdte_monitor-hes.
+      DATA lv_em_ap       TYPE zdte_monitor-em.
 
       lo_proc->process_dte(
         EXPORTING
@@ -243,7 +246,10 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
           ev_prov_sap  = lv_prov_ap
           ev_year_em   = lv_year_em_ap
           ev_doc_fact  = lv_doc_fact_ap
-          ev_year_fact = lv_year_fc_ap ).
+          ev_year_fact = lv_year_fc_ap
+          ev_oc        = lv_oc_ap
+          ev_hes       = lv_hes_ap
+          ev_em        = lv_em_ap ).
 
       DATA(lv_user_ap) = cl_abap_context_info=>get_user_technical_name( ).
       DATA(lv_date_ap) = cl_abap_context_info=>get_system_date( ).
@@ -252,6 +258,7 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
         ENTITY DteMonitor
           UPDATE FIELDS ( Estado LogProcesamiento BukrsSap ProveedorSap
                           AnioEntradaMercancia DocumentoFacturaSap AnioFacturaSap
+                          OrdenCompra HojaEntradaServicio EntradaMercancia
                           FechaModificacion UsuarioModificacion )
           WITH VALUE #( (
             %tky                 = ls_ap-%tky
@@ -262,6 +269,9 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
             AnioEntradaMercancia = lv_year_em_ap
             DocumentoFacturaSap  = lv_doc_fact_ap
             AnioFacturaSap       = lv_year_fc_ap
+            OrdenCompra          = lv_oc_ap
+            HojaEntradaServicio  = lv_hes_ap
+            EntradaMercancia     = lv_em_ap
             FechaModificacion    = lv_date_ap
             UsuarioModificacion  = lv_user_ap
           ) )

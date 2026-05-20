@@ -236,18 +236,12 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD date_to_epoch_ms.
-    " Convierte dats a milisegundos epoch (formato OData V2 /Date(...)/).
-    DATA lv_ts TYPE timestamp.
-    cl_abap_tstmp=>td_to_systemtstmp(
-      EXPORTING tz_in = 'UTC' td_date = iv_date td_time = '000000'
-      IMPORTING ts_out = lv_ts ).
-    " timestamp = YYYYMMDDhhmmss → segundos epoch via diferencia con 1970-01-01
-    DATA lv_secs TYPE p LENGTH 10.
-    cl_abap_tstmp=>subtract(
-      EXPORTING tstmp1 = lv_ts
-                tstmp2 = CONV timestamp( '19700101000000' )
-      RECEIVING r_secs = lv_secs ).
-    rv_ms = |{ lv_secs * 1000 }|.
+    " Convierte dats (YYYYMMDD) a milisegundos epoch (formato OData V2 /Date(ms)/).
+    " Aprovecha la sustracción nativa de dats que devuelve la diferencia en dias.
+    CONSTANTS lc_epoch_base TYPE dats VALUE '19700101'.
+    DATA(lv_days)  = CONV i( iv_date - lc_epoch_base ).
+    DATA(lv_ms_p)  = CONV p( lv_days ) * 86400000.
+    rv_ms = |{ lv_ms_p }|.
   ENDMETHOD.
 
 ENDCLASS.

@@ -130,10 +130,6 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
         lo_client->close( ).
 
         rs_result = parse_response( iv_body = lv_body iv_status = lv_status ).
-        " DEBUG: incluir el body enviado en el mensaje si fallo
-        IF rs_result-ok = abap_false.
-          rs_result-message = |{ rs_result-message } # SENT: { lv_json }|.
-        ENDIF.
 
       CATCH cx_root INTO DATA(lx).
         rs_result-ok          = abap_false.

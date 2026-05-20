@@ -637,11 +637,24 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       INTO TABLE @DATA(lt_hist).
 
     LOOP AT lt_hist INTO DATA(ls_h).
+      " Fallback si PurchaseOrderItem viene vacio del history: leer de I_PurchaseOrderItemAPI01
+      DATA lv_po_item TYPE ebelp.
+      IF ls_h-PurchaseOrderItem IS NOT INITIAL.
+        lv_po_item = ls_h-PurchaseOrderItem.
+      ELSE.
+        " Para HES, tomar el primer item de la OC asociada
+        SELECT SINGLE PurchaseOrderItem
+          FROM I_PurchaseOrderItemAPI01
+          WHERE PurchaseOrder = @ls_h-PurchaseOrder
+          ORDER BY PurchaseOrderItem
+          INTO @lv_po_item.
+      ENDIF.
+
       APPEND VALUE #(
         ses_number = ls_h-PurchasingHistoryDocument
         ses_item   = ls_h-PurchasingHistoryDocumentItem
         po_number  = ls_h-PurchaseOrder
-        po_item    = ls_h-PurchaseOrderItem
+        po_item    = lv_po_item
         quantity   = 1
         unit       = 'EA'
         amount     = ls_h-PurchaseOrderAmount

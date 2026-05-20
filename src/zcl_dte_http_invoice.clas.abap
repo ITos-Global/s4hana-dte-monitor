@@ -191,7 +191,7 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
       && |"DocumentCurrency":"{ is_header-currency }",|
       && |"SupplierInvoiceIDByInvcgParty":"{ lv_folio_trim }",|
       && |"SupplierInvoiceIsCreditMemo":"{ lv_credit }",|
-      && |"TaxIsCalculatedAutomatically":false,|
+      && |"TaxIsCalculatedAutomatically":true,|
       && |"to_SuplrInvcItemPurOrdRef":\{"results":[{ lv_items }]\}|
       && |\}|.
   ENDMETHOD.

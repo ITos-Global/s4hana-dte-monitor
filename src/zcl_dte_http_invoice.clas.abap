@@ -77,10 +77,10 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
     rs_result-ok = abap_false.
 
     TRY.
-        " Obtener destination via Communication Arrangement (SAP_COM_0057)
+        " Obtener destination via Communication Arrangement ZSD_DTE_MONITOR
+        " (outbound custom scenario sin service_id explicito).
         DATA(lo_dest) = cl_http_destination_provider=>create_by_comm_arrangement(
-                          comm_scenario = gc_comm_scenario
-                          service_id    = gc_comm_service_id ).
+                          comm_scenario = gc_comm_scenario ).
         DATA(lo_client) = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
 
         " --- Fetch CSRF ---

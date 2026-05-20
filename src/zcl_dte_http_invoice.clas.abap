@@ -180,8 +180,8 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
       && |"InvoiceGrossAmount":"{ is_header-gross_amount DECIMALS = 2 NUMBER = RAW }",|
       && |"DocumentCurrency":"{ is_header-currency }",|
       && |"SupplierInvoiceIDByInvcgParty":"{ lv_folio_trim }",|
-      && |"SupplierInvoiceIsCreditMemo":{ lv_credit },|
-      && |"TaxIsCalculatedAutomatically":false,|
+      && |"SupplierInvoiceIsCreditMemo":"{ lv_credit }",|
+      && |"TaxIsCalculatedAutomatically":"false",|
       && |"to_SupplierInvoiceItemPurOrdRef":\{"results":[{ lv_items }]\}|
       && |\}|.
   ENDMETHOD.

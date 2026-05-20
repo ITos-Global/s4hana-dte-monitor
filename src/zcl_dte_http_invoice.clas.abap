@@ -86,7 +86,8 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
 
         " --- Fetch CSRF ---
         DATA(lo_req) = lo_client->get_http_request( ).
-        lo_req->set_uri( gc_api_path && '?$top=0' ).
+        lo_req->set_uri_path( gc_api_path ).
+        lo_req->set_query( '$top=0' ).
         lo_req->set_header_fields( VALUE #(
           ( name = 'x-csrf-token' value = 'fetch' )
           ( name = 'Accept'       value = 'application/json' )
@@ -111,7 +112,7 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
         DATA(lv_json) = build_json( is_header ).
 
         DATA(lo_req2) = lo_client->get_http_request( ).
-        lo_req2->set_uri( gc_api_path ).
+        lo_req2->set_uri_path( gc_api_path ).
         lo_req2->set_header_fields( VALUE #(
           ( name = 'Accept'       value = 'application/json' )
           ( name = 'Content-Type' value = 'application/json' )
@@ -140,7 +141,9 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
 
     LOOP AT is_header-items INTO DATA(ls_it).
       lv_idx = lv_idx + 1.
-      DATA(lv_item_no) = |{ lv_idx ALPHA = IN }|.  " 5 digits zero-padded
+      " 5 digits zero-padded (n LENGTH 5 hace el zero-pad implicito al asignar)
+      DATA lv_item_no TYPE n LENGTH 5.
+      lv_item_no = lv_idx.
 
       DATA(lv_item) = |\{|
         && |"SupplierInvoiceItem":"{ lv_item_no }",|

@@ -114,7 +114,7 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
         lo_req2->set_uri_path( gc_api_path ).
         " Propagar cookies (de a una, no hay set_cookies bulk)
         LOOP AT lt_cookies INTO DATA(ls_ck).
-          lo_req2->set_cookie( name = ls_ck-name value = ls_ck-value ).
+          lo_req2->set_cookie( i_name = ls_ck-name i_value = ls_ck-value ).
         ENDLOOP.
         lo_req2->set_header_fields( VALUE #(
           ( name = 'Accept'       value = 'application/json' )

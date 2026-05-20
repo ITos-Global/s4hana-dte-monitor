@@ -175,10 +175,14 @@ CLASS zcl_dte_http_invoice IMPLEMENTATION.
     " Folio sin espacios trailing (char20 -> trim)
     DATA(lv_folio_trim) = condense( CONV string( is_header-folio_sii ) ).
 
+    DATA(lv_doc_date_ms)  = date_to_epoch_ms( is_header-document_date ).
+    DATA(lv_post_date_ms) = date_to_epoch_ms( is_header-posting_date ).
+
     rv_json = |\{|
       && |"CompanyCode":"{ is_header-company_code }",|
-      && |"DocumentDate":"/Date({ date_to_epoch_ms( is_header-document_date ) })/",|
-      && |"PostingDate":"/Date({ date_to_epoch_ms( is_header-posting_date ) })/",|
+      && |"DocumentDate":"/Date({ lv_doc_date_ms })/",|
+      && |"PostingDate":"/Date({ lv_post_date_ms })/",|
+      && |"TaxDeterminationDate":"/Date({ lv_doc_date_ms })/",|
       && |"InvoiceGrossAmount":"{ is_header-gross_amount DECIMALS = 2 NUMBER = RAW }",|
       && |"DocumentCurrency":"{ is_header-currency }",|
       && |"SupplierInvoiceIDByInvcgParty":"{ lv_folio_trim }",|

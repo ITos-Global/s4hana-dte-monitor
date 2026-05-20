@@ -915,76 +915,51 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       ) TO lt_taxes.
     ENDIF.
 
-    " ---- EML: crear factura de proveedor via action Create de I_SupplierInvoiceTP ----
+    " ---- Llamada HTTP a API_SUPPLIERINVOICE_PROCESS_SRV ----
+    " Reemplaza MODIFY ENTITIES OF I_SupplierInvoiceTP (no permitido cross-BO en
+    " RAP managed — produce BEHAVIOR_STATEMENT_ILLEGAL / BEHAVIOR_INTERNAL_ACCESS).
+    " Setup de Communication Arrangement: ver docs/setup-comm-arrangement.md
     DATA(lv_moneda) = COND waers( WHEN is_dte-moneda IS INITIAL THEN 'CLP'
                                   ELSE is_dte-moneda ).
 
-    MODIFY ENTITIES OF I_SupplierInvoiceTP
-      ENTITY SupplierInvoice
-        EXECUTE Create
-          FROM VALUE #( (
-            %cid   = 'INV_HDR'
-            %param = VALUE #(
-              SupplierInvoiceIsCreditMemo   = COND #( WHEN is_dte-tipo_dte = '56'
-                                                      THEN abap_true
-                                                      ELSE abap_false )
-              DocumentDate                  = is_dte-fecha_emision
-              PostingDate                   = cl_abap_context_info=>get_system_date( )
-              CompanyCode                   = iv_bukrs
-              DocumentCurrency              = lv_moneda
-              InvoiceGrossAmount            = CONV rmwwr( is_dte-monto_total )
-              TaxIsCalculatedAutomatically  = abap_false
-              SupplierInvoiceIDByInvcgParty = is_dte-folio
+    " Mapear ítems internos al formato del cliente HTTP
+    DATA lt_http_items TYPE zcl_dte_http_invoice=>tt_items.
+    LOOP AT lt_items INTO DATA(ls_local_it).
+      APPEND VALUE #(
+        po_number  = ls_local_it-po_number
+        po_item    = ls_local_it-po_item
+        ses_number = ls_local_it-sheet_no
+        ses_item   = CONV numc5( '00010' )
+        quantity   = ls_local_it-quantity
+        unit       = ls_local_it-unit
+        amount     = ls_local_it-item_amount
+        currency   = lv_moneda
+      ) TO lt_http_items.
+    ENDLOOP.
 
-              _ItemsWithPOReference = VALUE #(
-                FOR ls_ei IN lt_items
-                ( SupplierInvoiceItem         = ls_ei-item_no
-                  PurchaseOrder               = ls_ei-po_number
-                  PurchaseOrderItem           = ls_ei-po_item
-                  QuantityInPurchaseOrderUnit = ls_ei-quantity
-                  PurchaseOrderQuantityUnit   = ls_ei-unit
-                  ServiceEntrySheet           = ls_ei-sheet_no
-                  SupplierInvoiceItemAmount   = ls_ei-item_amount
-                  ReferenceDocument           = ls_ei-ref_doc
-                  ReferenceDocumentItem       = CONV lfpos( ls_ei-ref_doc_item )
-                  DocumentCurrency            = lv_moneda
-                )
-              )
+    DATA(ls_result) = zcl_dte_http_invoice=>post_invoice(
+      VALUE #(
+        is_credit_memo = COND #( WHEN is_dte-tipo_dte = '056' OR is_dte-tipo_dte = '061'
+                                  THEN abap_true ELSE abap_false )
+        document_date  = is_dte-fecha_emision
+        posting_date   = cl_abap_context_info=>get_system_date( )
+        company_code   = iv_bukrs
+        currency       = lv_moneda
+        gross_amount   = is_dte-monto_total
+        folio_sii      = is_dte-folio
+        items          = lt_http_items
+      ) ).
 
-              _Taxes = VALUE #(
-                FOR ls_tx IN lt_taxes
-                ( TaxCode               = ls_tx-tax_code
-                  TaxAmountInDocCry     = ls_tx-tax_amount
-                  TaxBaseAmountInDocCry = ls_tx-tax_base
-                  DocumentCurrency      = lv_moneda
-                )
-              )
-            )
-          ) )
-      MAPPED   DATA(ls_mapped)
-      FAILED   DATA(ls_failed)
-      REPORTED DATA(ls_reported).
-
-    " Verificar errores del MODIFY (IS NOT INITIAL es genérico, no requiere alias de entidad)
-    IF ls_failed IS NOT INITIAL.
-      ROLLBACK ENTITIES.
+    IF ls_result-ok = abap_false.
       ev_ok      = abap_false.
-      ev_mensaje = 'Error al crear factura de proveedor. Verificar log de aplicación (SLG1).'.
+      ev_mensaje = |Error al crear factura (HTTP { ls_result-http_status }): { ls_result-message }|.
       RETURN.
     ENDIF.
 
-    " Confirmar
-    COMMIT ENTITIES.
-
-    " Obtener número del documento desde el resultado del COMMIT ENTITIES
-    DATA(ls_created_key) = VALUE #( ls_mapped-SupplierInvoice[ %cid = 'INV_HDR' ] OPTIONAL ).
-    IF ls_created_key-SupplierInvoice IS NOT INITIAL.
-      ev_doc_fact  = CONV belnr_d( ls_created_key-SupplierInvoice ).
-      ev_year_fact = CONV gjahr( ls_created_key-SupplierInvoiceFiscalYear ).
-    ENDIF.
-
-    ev_ok      = abap_true.
-    ev_mensaje = |DTE contabilizado: documento { ev_doc_fact } / { ev_year_fact }.|.
+    ev_doc_fact  = ls_result-supplier_invoice.
+    ev_year_fact = ls_result-fiscal_year.
+    ev_ok        = abap_true.
+    ev_mensaje   = |DTE contabilizado: documento { ev_doc_fact } / { ev_year_fact }.|.
   ENDMETHOD.
 
   METHOD get_rut_proveedor.

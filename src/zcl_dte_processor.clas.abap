@@ -43,6 +43,13 @@ CLASS zcl_dte_processor DEFINITION
       IMPORTING iv_hes        TYPE char10
       RETURNING VALUE(rt_items) TYPE tt_hes_items.
 
+    " Factor para "des-shiftear" amounts leidos via CDS de campos CURR.
+    " Para CLP/JPY/KRW/ISK/CLF/UYI (currdec=0 en TCURX) devuelve 100,
+    " para el resto devuelve 1.
+    CLASS-METHODS get_currency_shift_factor
+      IMPORTING iv_currency      TYPE waers
+      RETURNING VALUE(rv_factor) TYPE i.
+
     " Estructura pública con campos clave extraídos del XML del DTE.
     " Usada por el ingestor para crear el registro inicial en la tabla.
     TYPES: BEGIN OF ty_dte_meta,
@@ -660,6 +667,11 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       lv_qty  = COND #( WHEN ls_s-ConfirmedQuantity IS NOT INITIAL THEN ls_s-ConfirmedQuantity ELSE 1 ).
       lv_unit = COND #( WHEN ls_s-QuantityUnit IS NOT INITIAL THEN ls_s-QuantityUnit ELSE 'EA' ).
 
+      " "Des-shift" del amount: CDS lee el valor crudo de la columna CURR.
+      " Para monedas con 0 decimales (CLP, JPY...) hay que multiplicar por 100
+      " para obtener el monto real que la API espera.
+      DATA(lv_factor) = get_currency_shift_factor( ls_s-Currency ).
+
       APPEND VALUE #(
         ses_number = ls_s-ServiceEntrySheet
         ses_item   = ls_s-ServiceEntrySheetItem
@@ -667,10 +679,23 @@ CLASS zcl_dte_processor IMPLEMENTATION.
         po_item    = lv_po_item
         quantity   = lv_qty
         unit       = lv_unit
-        amount     = ls_s-NetAmount
+        amount     = ls_s-NetAmount * lv_factor
         currency   = ls_s-Currency
       ) TO rt_items.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD get_currency_shift_factor.
+    " Monedas con currdec = 0 en TCURX. La columna CURR en DB tiene 2 decimales
+    " implicitos, por lo que un monto "100.000 CLP" se almacena como 1000.00.
+    " Al leer via CDS sin awareness de TCURX se obtiene 1000 → hay que x100.
+    CASE iv_currency.
+      WHEN 'CLP' OR 'JPY' OR 'KRW' OR 'ISK' OR 'CLF' OR 'UYI' OR 'VND'
+        OR 'UGX' OR 'RWF' OR 'IDR' OR 'PYG' OR 'XAF' OR 'XOF' OR 'XPF'.
+        rv_factor = 100.
+      WHEN OTHERS.
+        rv_factor = 1.
+    ENDCASE.
   ENDMETHOD.
 
   METHOD validate_sociedad.
@@ -1079,6 +1104,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
           AND PurchaseOrder    = @is_dte-oc_ref
         INTO TABLE @DATA(lt_mseg).
 
+      DATA(lv_factor_em) = get_currency_shift_factor( is_dte-moneda ).
       LOOP AT lt_mseg INTO DATA(ls_mseg).
         APPEND VALUE #(
           cid          = |ITEM{ lv_cnt }|
@@ -1089,7 +1115,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
           ref_doc_item = CONV numc4( ls_mseg-MaterialDocumentItem )
           quantity     = ls_mseg-QuantityInBaseUnit
           unit         = ls_mseg-MaterialBaseUnit
-          item_amount  = ls_mseg-TotalGoodsMvtAmtInCCCrcy
+          item_amount  = ls_mseg-TotalGoodsMvtAmtInCCCrcy * lv_factor_em
         ) TO lt_items.
         lv_cnt += 1.
       ENDLOOP.
@@ -1199,12 +1225,13 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       INTO TABLE @DATA(lt_hes_hist).
 
     LOOP AT lt_hes_hist INTO DATA(ls_h).
+      DATA(lv_factor_ph) = get_currency_shift_factor( ls_h-DocumentCurrency ).
       APPEND VALUE #(
         purchase_order           = ls_h-PurchaseOrder
         purchase_order_item      = ls_h-PurchaseOrderItem
         service_entry_sheet      = ls_h-PurchasingHistoryDocument
         service_entry_sheet_item = ls_h-PurchasingHistoryDocumentItem
-        purchase_order_amount    = ls_h-PurchaseOrderAmount
+        purchase_order_amount    = ls_h-PurchaseOrderAmount * lv_factor_ph
         document_currency        = ls_h-DocumentCurrency
       ) TO rt_pos.
     ENDLOOP.
@@ -1224,6 +1251,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     "    ReferenceDocument apunta a la HES de origen.
     SELECT PurchasingHistoryDocument,
            PurchaseOrderAmount,
+           DocumentCurrency,
            DebitCreditCode
       FROM I_PurchaseOrderHistoryAPI01
       WHERE PurchaseOrder                 = @iv_oc
@@ -1232,16 +1260,16 @@ CLASS zcl_dte_processor IMPLEMENTATION.
         AND ReferenceDocument             = @iv_hes
       INTO TABLE @DATA(lt_facturas).
 
-    " 2) Para cada factura, sumar su valor con signo:
+    " 2) Para cada factura, sumar su valor con signo (aplicando shift de moneda):
     "    - Movimiento original (S = Soll/Debe): suma positiva
     "    - Anulación (H = Haben/Haber): suma negativa
-    "    Si una factura tiene anulaciones encadenadas que la cancelan,
-    "    la suma resultante es cero y se libera la HES.
     LOOP AT lt_facturas INTO DATA(ls_f).
+      DATA(lv_factor_fh) = get_currency_shift_factor( ls_f-DocumentCurrency ).
+      DATA(lv_signed)    = ls_f-PurchaseOrderAmount * lv_factor_fh.
       IF ls_f-DebitCreditCode = 'H'.
-        rv_monto_neto = rv_monto_neto - ls_f-PurchaseOrderAmount.
+        rv_monto_neto = rv_monto_neto - lv_signed.
       ELSE.
-        rv_monto_neto = rv_monto_neto + ls_f-PurchaseOrderAmount.
+        rv_monto_neto = rv_monto_neto + lv_signed.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -1297,11 +1325,11 @@ CLASS zcl_dte_processor IMPLEMENTATION.
         WHERE PurchaseOrder = @is_dte-oc_ref
         INTO @lv_facturado.
 
-      rv_monto_clp = lv_monto_em - lv_facturado.
+      DATA(lv_factor_em2) = get_currency_shift_factor( is_dte-moneda ).
+      rv_monto_clp = ( lv_monto_em - lv_facturado ) * lv_factor_em2.
 
     ELSEIF is_dte-oc_ref IS NOT INITIAL.
       " Valor neto OC desde I_PurchaseOrderItemAPI01
-      " TODO: verificar nombre exacto del campo NETWR en el sistema (NetPriceAmount / ItemNetAmount)
       DATA lv_netwr_oc TYPE p LENGTH 15 DECIMALS 2.
       SELECT SUM( NetPriceAmount )
         FROM I_PurchaseOrderItemAPI01
@@ -1313,7 +1341,8 @@ CLASS zcl_dte_processor IMPLEMENTATION.
         WHERE PurchaseOrder = @is_dte-oc_ref
         INTO @lv_facturado.
 
-      rv_monto_clp = lv_netwr_oc - lv_facturado.
+      DATA(lv_factor_oc) = get_currency_shift_factor( is_dte-moneda ).
+      rv_monto_clp = ( lv_netwr_oc - lv_facturado ) * lv_factor_oc.
     ENDIF.
 
     " Convertir a CLP si corresponde

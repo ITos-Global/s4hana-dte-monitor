@@ -47,7 +47,7 @@ CLASS zcl_dte_http_invoice DEFINITION
       `/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice`.
 
     CONSTANTS gc_comm_scenario   TYPE c LENGTH 30 VALUE 'SAP_COM_0046'.
-    CONSTANTS gc_comm_service_id TYPE c LENGTH 40 VALUE 'SAP_COM_0046_DEFAULT_PI'.
+    CONSTANTS gc_comm_service_id TYPE c LENGTH 40 VALUE 'API_SUPPLIERINVOICE_PROCESS_SRV_0001'.
 
     CLASS-METHODS build_json
       IMPORTING is_header      TYPE ty_header

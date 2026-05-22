@@ -24,12 +24,12 @@ define root view entity ZI_DTE_MONITOR
       m.estado                      as Estado,
 
       case m.estado
-        when '01' then cast( 2 as abap.int1 )
+        when '01' then cast( 0 as abap.int1 )
         when '02' then cast( 3 as abap.int1 )
         when '03' then cast( 1 as abap.int1 )
-        when '04' then cast( 1 as abap.int1 )
+        when '04' then cast( 2 as abap.int1 )
         when '05' then cast( 1 as abap.int1 )
-        when '06' then cast( 3 as abap.int1 )
+        when '06' then cast( 5 as abap.int1 )
         else            cast( 0 as abap.int1 )
       end                           as Criticality,
 
@@ -57,6 +57,11 @@ define root view entity ZI_DTE_MONITOR
       m.year_em                     as AnioEntradaMercancia,
       m.hes                         as HojaEntradaServicio,
       m.folio_ref                   as FolioReferencia,
+
+      m.motivo_nc                   as MotivoNc,
+      m.material_doc_ref            as MaterialDocRef,
+      m.material_doc_ref_y          as MaterialDocRefAnio,
+      m.doc_fact_origen             as DocFacturaOrigen,
 
       m.xml_data                    as XmlData,
       m.log_proc                    as LogProcesamiento,

@@ -8,8 +8,13 @@ define behavior for ZC_DTE_MONITOR alias DteMonitor
 
   use action Reprocesar;
   use action Rechazar;
+  use action Contabilizar;
   use action IndicarDocReferencia;
   use action IndicarPosiciones;
+
+  use action IngestFromXml;
+  use action IngestFromSii;
+  use action RefrescarMasivo;
 
   use function GetMontosPendientes;
 

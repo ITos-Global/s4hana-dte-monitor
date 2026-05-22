@@ -5,18 +5,29 @@ CLASS zcl_dte_processor DEFINITION
 
   PUBLIC SECTION.
 
+    " Type aliases (los data elements CHARn/NUMCn/DATS estan deprecated
+    " en ABAP Cloud — usar tipos propios o genericos).
+    TYPES:
+      ty_tipo_dte   TYPE n LENGTH 3,
+      ty_folio      TYPE c LENGTH 20,
+      ty_rut        TYPE c LENGTH 12,
+      ty_razon_soc  TYPE c LENGTH 100,
+      ty_fecha      TYPE d,
+      ty_ses_id     TYPE c LENGTH 10,
+      ty_mat_doc_it TYPE n LENGTH 4.
+
     " Tipos de DTE permitidos según especificación funcional
     CONSTANTS:
       BEGIN OF gc_tipo_dte_permitido,
-        factura_afecta TYPE numc3 VALUE '033',
-        factura_exenta TYPE numc3 VALUE '034',
-        factura_compra TYPE numc3 VALUE '046',
-        nota_debito    TYPE numc3 VALUE '056',
-        nota_credito   TYPE numc3 VALUE '061',
+        factura_afecta TYPE ty_tipo_dte VALUE '033',
+        factura_exenta TYPE ty_tipo_dte VALUE '034',
+        factura_compra TYPE ty_tipo_dte VALUE '046',
+        nota_debito    TYPE ty_tipo_dte VALUE '056',
+        nota_credito   TYPE ty_tipo_dte VALUE '061',
       END OF gc_tipo_dte_permitido.
 
     CLASS-METHODS is_tipo_dte_permitido
-      IMPORTING iv_tipo_dte    TYPE numc3
+      IMPORTING iv_tipo_dte    TYPE ty_tipo_dte
       RETURNING VALUE(rv_ok)   TYPE abap_bool.
 
     " Lectura masiva de registros pendientes para uso desde refrescar_masivo.
@@ -28,7 +39,7 @@ CLASS zcl_dte_processor DEFINITION
 
     " Items de una HES con su OC item (necesario para el header API supplier invoice)
     TYPES: BEGIN OF ty_hes_item,
-             ses_number TYPE char10,
+             ses_number TYPE ty_ses_id,
              ses_item   TYPE numc5,
              po_number  TYPE ebeln,
              po_item    TYPE ebelp,
@@ -40,7 +51,7 @@ CLASS zcl_dte_processor DEFINITION
     TYPES tt_hes_items TYPE STANDARD TABLE OF ty_hes_item WITH DEFAULT KEY.
 
     CLASS-METHODS get_hes_items
-      IMPORTING iv_hes        TYPE char10
+      IMPORTING iv_hes        TYPE ty_ses_id
       RETURNING VALUE(rt_items) TYPE tt_hes_items.
 
     " Factor para "des-shiftear" amounts leidos via CDS de campos CURR.
@@ -53,12 +64,12 @@ CLASS zcl_dte_processor DEFINITION
     " Estructura pública con campos clave extraídos del XML del DTE.
     " Usada por el ingestor para crear el registro inicial en la tabla.
     TYPES: BEGIN OF ty_dte_meta,
-             tipo_dte      TYPE numc3,
-             folio         TYPE char20,
-             rut_emisor    TYPE char12,
-             razon_social  TYPE char100,
-             rut_receptor  TYPE char12,
-             fecha_emision TYPE dats,
+             tipo_dte      TYPE ty_tipo_dte,
+             folio         TYPE ty_folio,
+             rut_emisor    TYPE ty_rut,
+             razon_social  TYPE ty_razon_soc,
+             rut_receptor  TYPE ty_rut,
+             fecha_emision TYPE ty_fecha,
              moneda        TYPE waers,
              monto_neto    TYPE p LENGTH 15 DECIMALS 2,
              monto_exento  TYPE p LENGTH 15 DECIMALS 2,
@@ -85,7 +96,7 @@ CLASS zcl_dte_processor DEFINITION
     TYPES: BEGIN OF ty_pos_pendiente,
              purchase_order           TYPE ebeln,
              purchase_order_item      TYPE ebelp,
-             service_entry_sheet      TYPE char10,
+             service_entry_sheet      TYPE ty_ses_id,
              service_entry_sheet_item TYPE numc5,
              purchase_order_amount    TYPE p LENGTH 13 DECIMALS 2,
              document_currency        TYPE waers,
@@ -95,7 +106,7 @@ CLASS zcl_dte_processor DEFINITION
     " Lectura del monto pendiente por posición HES desde I_PurchaseOrderHistoryAPI01.
     METHODS get_pendiente_hes
       IMPORTING iv_oc           TYPE ebeln
-                iv_hes          TYPE char10
+                iv_hes          TYPE ty_ses_id
       RETURNING VALUE(rt_pos)   TYPE tt_pos_pendiente.
 
     " Suma neta de facturas previas para una HES (Type=2, Cat=Q) descontando
@@ -103,7 +114,7 @@ CLASS zcl_dte_processor DEFINITION
     " la factura original.
     METHODS get_facturado_hes_neto
       IMPORTING iv_oc                 TYPE ebeln
-                iv_hes                TYPE char10
+                iv_hes                TYPE ty_ses_id
       RETURNING VALUE(rv_monto_neto)  TYPE zdte_monitor-total_doc.
 
     METHODS process_dte
@@ -162,12 +173,12 @@ CLASS zcl_dte_processor DEFINITION
   PRIVATE SECTION.
 
     TYPES: BEGIN OF ty_dte_xml,
-             tipo_dte      TYPE numc3,
-             folio         TYPE char20,
-             rut_emisor    TYPE char12,
-             rut_receptor  TYPE char12,
-             razon_social  TYPE char100,
-             fecha_emision TYPE dats,
+             tipo_dte      TYPE ty_tipo_dte,
+             folio         TYPE ty_folio,
+             rut_emisor    TYPE ty_rut,
+             rut_receptor  TYPE ty_rut,
+             razon_social  TYPE ty_razon_soc,
+             fecha_emision TYPE ty_fecha,
              moneda        TYPE waers,
              monto_neto    TYPE p LENGTH 15 DECIMALS 2,
              monto_exento  TYPE p LENGTH 15 DECIMALS 2,
@@ -179,10 +190,10 @@ CLASS zcl_dte_processor DEFINITION
              oc_ref        TYPE ebeln,
              hes_ref       TYPE belnr_d,
              em_ref        TYPE belnr_d,
-             folio_ref     TYPE char20,
+             folio_ref     TYPE ty_folio,
              tiene_ref     TYPE abap_bool,
              " Referencia factura base (TpoDocRef 33/34) para NC/ND
-             factura_base_folio TYPE char20,
+             factura_base_folio TYPE ty_folio,
              " Datos NC propagados por posting_dte (no extraídos del XML)
              motivo_nc          TYPE zdte_monitor-motivo_nc,
              material_doc_ref   TYPE belnr_d,
@@ -192,8 +203,8 @@ CLASS zcl_dte_processor DEFINITION
 
     TYPES: BEGIN OF ty_referencia,
              nro_lin    TYPE i,
-             tipo_doc   TYPE char10,
-             folio_ref  TYPE char20,
+             tipo_doc   TYPE ty_ses_id,
+             folio_ref  TYPE ty_folio,
            END OF ty_referencia.
     TYPES tt_referencias TYPE STANDARD TABLE OF ty_referencia WITH DEFAULT KEY.
 
@@ -279,7 +290,7 @@ CLASS zcl_dte_processor DEFINITION
 
     METHODS get_tipo_cambio
       IMPORTING iv_moneda    TYPE waers
-                iv_fecha     TYPE dats
+                iv_fecha     TYPE ty_fecha
       RETURNING VALUE(rv_tc) TYPE wrbtr.
 
     METHODS get_config
@@ -312,7 +323,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     DATA ls_dte TYPE ty_dte_xml.
     TRY.
         ls_dte = parse_xml( iv_xml_data ).
-      CATCH cx_dynamic_check INTO DATA(lx).
+      CATCH cx_abap_invalid_value cx_dynamic_check INTO DATA(lx).
         ev_estado = '05'.
         ev_log    = |Error al parsear XML del DTE: { lx->get_text( ) }|.
         RETURN.
@@ -415,7 +426,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     DATA ls_dte TYPE ty_dte_xml.
     TRY.
         ls_dte = parse_xml( iv_xml_data ).
-      CATCH cx_dynamic_check INTO DATA(lx).
+      CATCH cx_abap_invalid_value cx_dynamic_check INTO DATA(lx).
         ev_estado = '05'.
         ev_log    = |Error al parsear XML: { lx->get_text( ) }|.
         RETURN.
@@ -466,7 +477,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     DATA ls_dte TYPE ty_dte_xml.
     TRY.
         ls_dte = parse_xml( iv_xml_data ).
-      CATCH cx_dynamic_check INTO DATA(lx_post).
+      CATCH cx_abap_invalid_value cx_dynamic_check INTO DATA(lx_post).
         ev_mensaje = |Error al parsear XML para contabilizar: { lx_post->get_text( ) }|.
         RETURN.
     ENDTRY.
@@ -554,10 +565,10 @@ CLASS zcl_dte_processor IMPLEMENTATION.
                 ENDCASE.
               ELSE.
                 CASE lv_e.
-                  WHEN 'TipoDTE'.  rs_dte-tipo_dte     = CONV numc3( lv_v ).
+                  WHEN 'TipoDTE'.  rs_dte-tipo_dte     = CONV ty_tipo_dte( lv_v ).
                   WHEN 'Folio'.    rs_dte-folio        = lv_v.
                   WHEN 'FchEmis'.
-                    rs_dte-fecha_emision = CONV dats(
+                    rs_dte-fecha_emision = CONV ty_fecha(
                       lv_v(4) && lv_v+5(2) && lv_v+8(2) ).
                   WHEN 'TpoMoneda'.
                     IF lv_v IS NOT INITIAL. rs_dte-moneda = lv_v. ENDIF.
@@ -1018,10 +1029,11 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       lv_monto_dte_clp = is_dte-monto_total * lv_tc.
     ENDIF.
 
-    DATA(lv_diferencia) = abs( lv_monto_dte_clp - lv_monto_pend ).
-
-    DATA(lv_tol_por_pct) = lv_monto_pend * lv_tol_pct / 100.
+    DATA lv_diferencia   TYPE p LENGTH 15 DECIMALS 2.
+    DATA lv_tol_por_pct  TYPE p LENGTH 15 DECIMALS 2.
     DATA lv_tol_aplicada TYPE p LENGTH 15 DECIMALS 2.
+    lv_diferencia  = abs( lv_monto_dte_clp - lv_monto_pend ).
+    lv_tol_por_pct = lv_monto_pend * lv_tol_pct / 100.
     IF lv_tol_por_pct < lv_tol_clp.
       lv_tol_aplicada = lv_tol_por_pct.
     ELSE.
@@ -1059,7 +1071,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
              sheet_item   TYPE numc5,
              item_amount  TYPE wrbtr,
              ref_doc      TYPE belnr_d,
-             ref_doc_item TYPE numc4,
+             ref_doc_item TYPE ty_mat_doc_it,
            END OF ty_inv_item.
     DATA lt_items TYPE TABLE OF ty_inv_item WITH EMPTY KEY.
     DATA lv_cnt   TYPE i VALUE 1.
@@ -1116,7 +1128,7 @@ CLASS zcl_dte_processor IMPLEMENTATION.
           po_number    = ls_mseg-PurchaseOrder
           po_item      = ls_mseg-PurchaseOrderItem
           ref_doc      = ls_mseg-MaterialDocument
-          ref_doc_item = CONV numc4( ls_mseg-MaterialDocumentItem )
+          ref_doc_item = CONV ty_mat_doc_it( ls_mseg-MaterialDocumentItem )
           quantity     = ls_mseg-QuantityInBaseUnit
           unit         = ls_mseg-MaterialBaseUnit
           item_amount  = ls_mseg-TotalGoodsMvtAmtInCCCrcy * lv_factor_em
@@ -1267,9 +1279,11 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     " 2) Para cada factura, sumar su valor con signo (aplicando shift de moneda):
     "    - Movimiento original (S = Soll/Debe): suma positiva
     "    - Anulación (H = Haben/Haber): suma negativa
+    DATA lv_factor_fh TYPE i.
+    DATA lv_signed    TYPE p LENGTH 15 DECIMALS 2.
     LOOP AT lt_facturas INTO DATA(ls_f).
-      DATA(lv_factor_fh) = get_currency_shift_factor( ls_f-DocumentCurrency ).
-      DATA(lv_signed)    = ls_f-PurchaseOrderAmount * lv_factor_fh.
+      lv_factor_fh = get_currency_shift_factor( ls_f-DocumentCurrency ).
+      lv_signed    = ls_f-PurchaseOrderAmount * lv_factor_fh.
       IF ls_f-DebitCreditCode = 'H'.
         rv_monto_neto = rv_monto_neto - lv_signed.
       ELSE.

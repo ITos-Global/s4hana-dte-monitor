@@ -643,14 +643,11 @@ CLASS zcl_dte_processor IMPLEMENTATION.
 
   METHOD get_hes_items.
     " Items de HES desde I_ServiceEntrySheetItemAPI01.
-    " - Quantity: cantidad planificada de la HES (campo principal para servicios).
-    "   ConfirmedQuantity aplica a confirmaciones de entrada de mercancia y
-    "   suele venir vacio para hojas de servicio puras.
-    " - Si el CDS retorna PurchaseOrderItem vacio, fallback al primer item
-    "   de la OC via I_PurchaseOrderItemAPI01.
+    " Si el CDS retorna PurchaseOrderItem vacio, fallback al primer item
+    " de la OC via I_PurchaseOrderItemAPI01.
     SELECT ServiceEntrySheet, ServiceEntrySheetItem,
            PurchaseOrder, PurchaseOrderItem,
-           Quantity, ConfirmedQuantity, QuantityUnit,
+           ConfirmedQuantity, QuantityUnit,
            NetAmount, Currency
       FROM I_ServiceEntrySheetItemAPI01
       WHERE ServiceEntrySheet = @iv_hes
@@ -668,12 +665,10 @@ CLASS zcl_dte_processor IMPLEMENTATION.
 
       DATA lv_qty  TYPE menge_d.
       DATA lv_unit TYPE meins.
-      " Priorizar Quantity (planeada); fallback a ConfirmedQuantity si Quantity
-      " viene en cero. No usar default = 1 (silenciaba el problema real).
-      lv_qty = COND #(
-        WHEN ls_s-Quantity          IS NOT INITIAL THEN ls_s-Quantity
-        WHEN ls_s-ConfirmedQuantity IS NOT INITIAL THEN ls_s-ConfirmedQuantity
-        ELSE 0 ).
+      " Sin fallback a 1: si ConfirmedQuantity viene en 0 preferimos que la API
+      " devuelva un error para no enmascarar el problema real (antes silenciaba
+      " la cantidad real de la HES con un default=1).
+      lv_qty  = ls_s-ConfirmedQuantity.
       lv_unit = COND #( WHEN ls_s-QuantityUnit IS NOT INITIAL THEN ls_s-QuantityUnit ELSE 'EA' ).
 
       " "Des-shift" del amount: CDS lee el valor crudo de la columna CURR.

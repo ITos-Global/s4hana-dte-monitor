@@ -1,8 +1,6 @@
 <core:FragmentDefinition
     xmlns="sap.m"
-    xmlns:core="sap.ui.core"
-    xmlns:t="sap.ui.table"
-    xmlns:rowmodes="sap.ui.table.rowmodes">
+    xmlns:core="sap.ui.core">
 
     <Dialog
         id="montosPendDialog"
@@ -44,46 +42,40 @@
                 </VBox>
             </HBox>
 
-            <t:Table
+            <Table
                 id="montosPendTable"
-                rows="{montosPendModel>/posiciones}"
-                selectionMode="None"
-                alternateRowColors="true"
-                enableColumnReordering="false"
+                items="{montosPendModel>/posiciones}"
+                mode="None"
+                growing="true"
+                growingThreshold="10"
+                noDataText="{i18n>msgSinMontosPend}"
                 class="sapUiSmallMarginBegin sapUiSmallMarginEnd">
 
-                <t:rowMode>
-                    <rowmodes:Auto minRowCount="5" maxRowCount="10"/>
-                </t:rowMode>
-
-                <t:columns>
-                    <t:Column width="9rem" autoResizable="true">
+                <columns>
+                    <Column width="9rem">
                         <Label text="{i18n>colOC}"/>
-                        <t:template>
-                            <Text text="{montosPendModel>PurchaseOrder}"/>
-                        </t:template>
-                    </t:Column>
-                    <t:Column width="6rem" hAlign="End" autoResizable="true">
+                    </Column>
+                    <Column width="6rem" hAlign="End">
                         <Label text="{i18n>colPosOC}"/>
-                        <t:template>
-                            <Text text="{montosPendModel>PurchaseOrderItem}"/>
-                        </t:template>
-                    </t:Column>
-                    <t:Column width="9rem" autoResizable="true">
+                    </Column>
+                    <Column width="9rem">
                         <Label text="{i18n>colHES}"/>
-                        <t:template>
-                            <Text text="{montosPendModel>ServiceEntrySheet}"/>
-                        </t:template>
-                    </t:Column>
-                    <t:Column width="6rem" hAlign="End" autoResizable="true">
+                    </Column>
+                    <Column width="6rem" hAlign="End">
                         <Label text="{i18n>colPosHES}"/>
-                        <t:template>
-                            <Text text="{montosPendModel>ServiceEntrySheetItem}"/>
-                        </t:template>
-                    </t:Column>
-                    <t:Column width="11rem" hAlign="End" autoResizable="true">
+                    </Column>
+                    <Column width="11rem" hAlign="End">
                         <Label text="{i18n>colMontoPendiente}"/>
-                        <t:template>
+                    </Column>
+                </columns>
+
+                <items>
+                    <ColumnListItem>
+                        <cells>
+                            <Text text="{montosPendModel>PurchaseOrder}"/>
+                            <Text text="{montosPendModel>PurchaseOrderItem}"/>
+                            <Text text="{montosPendModel>ServiceEntrySheet}"/>
+                            <Text text="{montosPendModel>ServiceEntrySheetItem}"/>
                             <ObjectNumber
                                 number="{
                                     path: 'montosPendModel>PurchaseOrderAmount',
@@ -91,11 +83,11 @@
                                     formatOptions: { groupingEnabled: true, minFractionDigits: 0, maxFractionDigits: 2 }
                                 }"
                                 unit="{montosPendModel>DocumentCurrency}"/>
-                        </t:template>
-                    </t:Column>
-                </t:columns>
+                        </cells>
+                    </ColumnListItem>
+                </items>
 
-            </t:Table>
+            </Table>
 
             <HBox justifyContent="End"
                   class="sapUiSmallMargin">

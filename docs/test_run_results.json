@@ -1,0 +1,68 @@
+[
+  {
+    "case": 14,
+    "folio": "100014",
+    "estado": "06",
+    "estado_label": "Contabilizado",
+    "log_proc": "[20260528] DTE contabilizado: documento 5105600203 / 2026.",
+    "oc": "4500000151",
+    "hes": "86",
+    "doc_fact": "5105600203",
+    "expected": "Se debe generar factura",
+    "pass": true,
+    "trace": [
+      "DELETE HTTP 204",
+      "IngestFromXml HTTP 201",
+      "  body: {'@odata.context': '../$metadata#DteMonitor/$entity', '@odata.metadataEtag': 'W/\"20260528201232\"', '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Rechazar': {}, '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Reprocesar': {}, 'TipoDte': '0', 'Folio': '', 'Proveedor': '', 'Sociedad': '1000', 'BukrsSap': '",
+      "IngestFromSii HTTP 201",
+      "  body: {'@odata.context': '../$metadata#DteMonitor/$entity', '@odata.metadataEtag': 'W/\"20260528201232\"', '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Rechazar': {}, '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Reprocesar': {}, 'TipoDte': '0', 'Folio': '', 'Proveedor': '', 'Sociedad': '1000', 'BukrsSap': '",
+      "GET HTTP 200",
+      "Reprocesar HTTP 404",
+      "GET-2 HTTP 200"
+    ]
+  },
+  {
+    "case": 15,
+    "folio": "100015",
+    "estado": "06",
+    "estado_label": "Contabilizado",
+    "log_proc": "[20260528] DTE contabilizado: documento 5105600204 / 2026.",
+    "oc": "4500000152",
+    "hes": "87",
+    "doc_fact": "5105600204",
+    "expected": "Se debe generar factura",
+    "pass": true,
+    "trace": [
+      "DELETE HTTP 204",
+      "IngestFromXml HTTP 201",
+      "  body: {'@odata.context': '../$metadata#DteMonitor/$entity', '@odata.metadataEtag': 'W/\"20260528201232\"', '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Rechazar': {}, '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Reprocesar': {}, 'TipoDte': '0', 'Folio': '', 'Proveedor': '', 'Sociedad': '1000', 'BukrsSap': '",
+      "IngestFromSii HTTP 201",
+      "  body: {'@odata.context': '../$metadata#DteMonitor/$entity', '@odata.metadataEtag': 'W/\"20260528201232\"', '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Rechazar': {}, '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Reprocesar': {}, 'TipoDte': '0', 'Folio': '', 'Proveedor': '', 'Sociedad': '1000', 'BukrsSap': '",
+      "GET HTTP 200",
+      "Reprocesar HTTP 404",
+      "GET-2 HTTP 200"
+    ]
+  },
+  {
+    "case": 17,
+    "folio": "100017",
+    "estado": "06",
+    "estado_label": "Contabilizado",
+    "log_proc": "[20260528] DTE contabilizado: documento 5105600205 / 2026.",
+    "oc": "4500000154",
+    "hes": "89",
+    "doc_fact": "5105600205",
+    "expected": "Se debe generar factura",
+    "pass": true,
+    "trace": [
+      "DELETE HTTP 204",
+      "IngestFromXml HTTP 201",
+      "  body: {'@odata.context': '../$metadata#DteMonitor/$entity', '@odata.metadataEtag': 'W/\"20260528201232\"', '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Rechazar': {}, '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Reprocesar': {}, 'TipoDte': '0', 'Folio': '', 'Proveedor': '', 'Sociedad': '1000', 'BukrsSap': '",
+      "IngestFromSii HTTP 201",
+      "  body: {'@odata.context': '../$metadata#DteMonitor/$entity', '@odata.metadataEtag': 'W/\"20260528201232\"', '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Rechazar': {}, '#com.sap.gateway.srvd.zui_dte_monitor.v0001.Reprocesar': {}, 'TipoDte': '0', 'Folio': '', 'Proveedor': '', 'Sociedad': '1000', 'BukrsSap': '",
+      "GET HTTP 200",
+      "Reprocesar HTTP 404",
+      "GET-2 HTTP 200"
+    ]
+  }
+]

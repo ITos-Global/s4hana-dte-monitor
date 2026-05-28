@@ -60,6 +60,7 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
       APPEND VALUE #(
         %tky                         = ls_auth_key-%tky
         %update                      = if_abap_behv=>auth-allowed
+        %delete                      = if_abap_behv=>auth-allowed
         %action-Reprocesar           = if_abap_behv=>auth-allowed
         %action-Rechazar             = if_abap_behv=>auth-allowed
         %action-IndicarDocReferencia = if_abap_behv=>auth-allowed

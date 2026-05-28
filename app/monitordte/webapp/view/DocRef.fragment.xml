@@ -47,23 +47,20 @@
 
                     <!-- Entrada de Mercancías -->
                     <Label text="{i18n>labelEM}"/>
-                    <HBox>
-                        <Input
-                            id="inputEM"
-                            value="{docRefModel>/EntradaMercancia}"
-                            maxLength="10"
-                            placeholder="{i18n>placeholderEM}"
-                            width="60%"
-                            liveChange=".onDocRefFieldChange"/>
-                        <Label text="{i18n>labelAnio}" class="sapUiSmallMarginBegin"/>
-                        <Input
-                            id="inputAnioEM"
-                            value="{docRefModel>/AnioEntradaMercancia}"
-                            maxLength="4"
-                            placeholder="AAAA"
-                            width="35%"
-                            class="sapUiSmallMarginBegin"/>
-                    </HBox>
+                    <Input
+                        id="inputEM"
+                        value="{docRefModel>/EntradaMercancia}"
+                        maxLength="10"
+                        placeholder="{i18n>placeholderEM}"
+                        liveChange=".onDocRefFieldChange"/>
+
+                    <!-- Año Entrada de Mercancías -->
+                    <Label text="{i18n>labelAnio}"/>
+                    <Input
+                        id="inputAnioEM"
+                        value="{docRefModel>/AnioEntradaMercancia}"
+                        maxLength="4"
+                        placeholder="AAAA"/>
 
                     <!-- Folio Factura Referencia (para NC/ND) -->
                     <Label text="{i18n>labelFolioRef}"/>

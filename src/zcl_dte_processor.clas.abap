@@ -1301,6 +1301,44 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     DATA(lv_moneda) = COND waers( WHEN is_dte-moneda IS INITIAL THEN 'CLP'
                                   ELSE is_dte-moneda ).
 
+    " ---- Reconciliar montos de ítems con el neto del DTE ----
+    " Los ítems se arman desde el documento de origen (HES/EM/OC), que puede estar
+    " en otra moneda y/o diferir del DTE dentro de la tolerancia permitida. Pero la
+    " factura se contabiliza en la moneda y por el monto del DTE (el documento legal
+    " del proveedor). Si no se reconcilia, el SupplierInvoiceItemAmount queda con la
+    " magnitud/moneda del origen mientras el bruto (InvoiceGrossAmount) va con el DTE
+    " y la API rechaza con "Balance not zero" (débitos ítems+IVA ≠ créditos bruto).
+    " Se reparte el neto del DTE entre los ítems según su peso (el último absorbe el
+    " redondeo); con un solo ítem, recibe el neto completo.
+    DATA lv_dte_neto TYPE p LENGTH 15 DECIMALS 2.
+    lv_dte_neto = is_dte-monto_neto + is_dte-monto_exento.
+
+    DATA(lv_num_items) = lines( lt_items ).
+    IF lv_dte_neto > 0 AND lv_num_items > 0.
+      DATA lv_sum_items TYPE p LENGTH 15 DECIMALS 2.
+      CLEAR lv_sum_items.
+      LOOP AT lt_items INTO DATA(ls_w).
+        lv_sum_items = lv_sum_items + ls_w-item_amount.
+      ENDLOOP.
+
+      DATA lv_acum_dte TYPE p LENGTH 15 DECIMALS 2.
+      CLEAR lv_acum_dte.
+      LOOP AT lt_items ASSIGNING FIELD-SYMBOL(<ls_rec>).
+        IF sy-tabix = lv_num_items.
+          " Último ítem: absorbe la diferencia de redondeo.
+          <ls_rec>-item_amount = lv_dte_neto - lv_acum_dte.
+        ELSEIF lv_sum_items > 0.
+          " Reparto proporcional al monto del origen.
+          <ls_rec>-item_amount = lv_dte_neto * <ls_rec>-item_amount / lv_sum_items.
+          lv_acum_dte = lv_acum_dte + <ls_rec>-item_amount.
+        ELSE.
+          " Sin montos de referencia (ej. Indicar Posiciones): reparto equitativo.
+          <ls_rec>-item_amount = lv_dte_neto / lv_num_items.
+          lv_acum_dte = lv_acum_dte + <ls_rec>-item_amount.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
     " Mapear ítems internos al formato del cliente HTTP
     DATA lt_http_items TYPE zcl_dte_http_invoice=>tt_items.
     LOOP AT lt_items INTO DATA(ls_local_it).

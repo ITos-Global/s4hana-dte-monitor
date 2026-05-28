@@ -9,6 +9,7 @@ define behavior for ZI_DTE_MONITOR alias DteMonitor
 {
   create;
   update;
+  delete;
 
   static factory action IngestFromXml parameter ZS_DTE_INGEST_XML [1];
 

@@ -248,6 +248,15 @@ CLASS zcl_dte_processor DEFINITION
                 ev_mensaje     TYPE string
                 ev_doc_origen  TYPE belnr_d.
 
+    " Validación de factura existente: detecta si la OC-HES ya tiene una
+    " factura vigente (no anulada) registrada en SAP. Aplica solo cuando
+    " hay HES de referencia (no para NC/ND, que tienen su propia validación
+    " de factura base).
+    METHODS validate_factura_existente
+      IMPORTING is_dte         TYPE ty_dte_xml
+      EXPORTING ev_ok          TYPE abap_bool
+                ev_mensaje     TYPE string.
+
     METHODS validate_sociedad
       IMPORTING iv_rut_sociedad TYPE zdte_monitor-sociedad
       EXPORTING ev_ok           TYPE abap_bool
@@ -394,6 +403,14 @@ CLASS zcl_dte_processor IMPLEMENTATION.
                 ev_mensaje = lv_msg ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
+    " 6.5) Validación de factura existente: la OC-HES no debe tener una
+    "      factura vigente registrada (spec: estado 05 si ya hay factura).
+    validate_factura_existente(
+      EXPORTING is_dte     = ls_dte
+      IMPORTING ev_ok      = lv_ok
+                ev_mensaje = lv_msg ).
+    IF lv_ok = abap_false. ev_estado = '05'. ev_log = lv_msg. RETURN. ENDIF.
+
     " 7) Validación de monto (saldo pendiente vs. tolerancia)
     validate_monto(
       EXPORTING is_dte    = ls_dte
@@ -402,10 +419,25 @@ CLASS zcl_dte_processor IMPLEMENTATION.
                 ev_mensaje = lv_msg ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
-    " 8) Validaciones OK → estado VALIDADO (no contabiliza automático;
-    "    el usuario presiona el botón Contabilizar para hacer el posting).
-    ev_estado = '02'.
-    ev_log    = 'Validaciones OK. Listo para contabilizar.'.
+    " 8) Validaciones OK → contabilización automática (registro de factura vía API).
+    "    No existe un estado intermedio "Validado": al superar las validaciones se
+    "    llama de inmediato a la API de creación de factura.
+    "    - API OK  → estado '06' (Contabilizado, transitorio a '02' Aprobado tras SII).
+    "    - API err → estado '05' (No procesado); el usuario puede reintentar.
+    "    El paso 6.5 (validate_factura_existente) actúa como guard de idempotencia:
+    "    un reproceso sobre una OC-HES ya facturada se frena antes de duplicar.
+    DATA lv_ok_post  TYPE abap_bool.
+    DATA lv_msg_post TYPE string.
+    contabilizar(
+      EXPORTING is_dte       = ls_dte
+                iv_bukrs     = ev_bukrs
+      IMPORTING ev_doc_fact  = ev_doc_fact
+                ev_year_fact = ev_year_fact
+                ev_ok        = lv_ok_post
+                ev_mensaje   = lv_msg_post ).
+
+    ev_estado = COND #( WHEN lv_ok_post = abap_true THEN '06' ELSE '05' ).
+    ev_log    = lv_msg_post.
   ENDMETHOD.
 
   METHOD process_dte_with_positions.
@@ -459,10 +491,26 @@ CLASS zcl_dte_processor IMPLEMENTATION.
                   IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
     IF lv_ok = abap_false. ev_estado = '04'. ev_log = lv_msg. RETURN. ENDIF.
 
-    " Validaciones OK → estado VALIDADO (no contabiliza automático).
-    " La contabilización con posiciones se hace desde la action dedicada.
-    ev_estado = '02'.
-    ev_log    = 'Validaciones OK con posiciones. Listo para contabilizar.'.
+    validate_factura_existente( EXPORTING is_dte = ls_dte
+                                IMPORTING ev_ok = lv_ok ev_mensaje = lv_msg ).
+    IF lv_ok = abap_false. ev_estado = '05'. ev_log = lv_msg. RETURN. ENDIF.
+
+    " Validaciones OK → contabilización automática con las posiciones indicadas.
+    "    - API OK  → estado '06' (Contabilizado).
+    "    - API err → estado '05' (No procesado).
+    DATA lv_ok_postp  TYPE abap_bool.
+    DATA lv_msg_postp TYPE string.
+    contabilizar(
+      EXPORTING is_dte        = ls_dte
+                iv_bukrs      = ev_bukrs
+                it_posiciones = it_posiciones
+      IMPORTING ev_doc_fact   = ev_doc_fact
+                ev_year_fact  = ev_year_fact
+                ev_ok         = lv_ok_postp
+                ev_mensaje    = lv_msg_postp ).
+
+    ev_estado = COND #( WHEN lv_ok_postp = abap_true THEN '06' ELSE '05' ).
+    ev_log    = lv_msg_postp.
   ENDMETHOD.
 
   METHOD posting_dte.
@@ -590,17 +638,27 @@ CLASS zcl_dte_processor IMPLEMENTATION.
 
     " Process references — zero-pad numericos (OC/HES/EM) via ALPHA = IN
     " para que matchee con SAP que los almacena padded (ej. 76 -> 0000000076).
+    " FIX: se usa variable intermedia del tipo destino (ebeln/belnr_d = CHAR 10)
+    " antes de aplicar ALPHA = IN. Sin esto, el template string usa la longitud
+    " del tipo fuente (ty_folio = c(20)) y produce 20 chars; al asignar a un
+    " campo CHAR(10) ABAP trunca por la derecha dejando '0000000000'.
+    DATA lv_oc_tmp  TYPE ebeln.
+    DATA lv_hes_tmp TYPE belnr_d.
+    DATA lv_em_tmp  TYPE belnr_d.
     rs_dte-tiene_ref = abap_false.
     LOOP AT lt_refs INTO DATA(ls_ref).
       CASE ls_ref-tipo_doc.
         WHEN '801'.
-          rs_dte-oc_ref    = |{ ls_ref-folio_ref ALPHA = IN }|.
+          lv_oc_tmp        = ls_ref-folio_ref.
+          rs_dte-oc_ref    = |{ lv_oc_tmp ALPHA = IN }|.
           rs_dte-tiene_ref = abap_true.
         WHEN 'HES'.
-          rs_dte-hes_ref   = |{ ls_ref-folio_ref ALPHA = IN }|.
+          lv_hes_tmp       = ls_ref-folio_ref.
+          rs_dte-hes_ref   = |{ lv_hes_tmp ALPHA = IN }|.
           rs_dte-tiene_ref = abap_true.
         WHEN '700' OR '701'.
-          rs_dte-em_ref    = |{ ls_ref-folio_ref ALPHA = IN }|.
+          lv_em_tmp        = ls_ref-folio_ref.
+          rs_dte-em_ref    = |{ lv_em_tmp ALPHA = IN }|.
           rs_dte-tiene_ref = abap_true.
         WHEN '33' OR '34'.
           " Referencia a factura base (para NC tipo 61 y ND tipo 56)
@@ -1001,12 +1059,78 @@ CLASS zcl_dte_processor IMPLEMENTATION.
     ev_mensaje = ''.
   ENDMETHOD.
 
+  METHOD validate_factura_existente.
+    " Spec: HES no permite parcialidades. Se debe verificar si la OC-HES ya
+    " tiene una factura registrada en el sistema. Si existe al menos una
+    " factura vigente (no anulada) → rechazar con estado 05 y mensaje
+    " "OC-HES ya presenta una factura en SAP".
+    "
+    " Pasos:
+    "  1) I_PurchaseOrderHistoryAPI01 con Type=2, Cat=Q, ReferenceDocument=HES,
+    "     DebitCreditCode=S → facturas previas asociadas a la HES.
+    "  2) Para cada factura: I_SupplierInvoiceAPI01 con SupplierInvoice y
+    "     FiscalYear → si ReverseDocument está vacío, la factura está vigente.
+    "  3) Si TODAS las facturas están anuladas (ReverseDocument <> '') → OK.
+    "     Si AL MENOS UNA está vigente → fallar.
+    ev_ok      = abap_true.
+    ev_mensaje = ''.
+
+    " Aplica solo a casos con HES; NC/ND ya tienen validate_factura_base
+    IF is_dte-hes_ref IS INITIAL OR is_dte-oc_ref IS INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_dte-tipo_dte = '056' OR is_dte-tipo_dte = '061'.
+      RETURN.
+    ENDIF.
+
+    " 1) Facturas previas en historial de OC vinculadas a la HES
+    SELECT PurchasingHistoryDocument,
+           PurchasingHistoryDocumentYear
+      FROM I_PurchaseOrderHistoryAPI01
+      WHERE PurchaseOrder                 = @is_dte-oc_ref
+        AND PurchasingHistoryDocumentType = '2'
+        AND PurchasingHistoryCategory     = 'Q'
+        AND ReferenceDocument             = @is_dte-hes_ref
+        AND DebitCreditCode               = 'S'
+      INTO TABLE @DATA(lt_facturas).
+
+    IF lt_facturas IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " 2) Verificar anulación de cada factura via ReverseDocument
+    DATA lv_existe_vigente TYPE abap_bool VALUE abap_false.
+    LOOP AT lt_facturas INTO DATA(ls_fact).
+      IF ls_fact-PurchasingHistoryDocument IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      SELECT SINGLE ReverseDocument
+        FROM I_SupplierInvoiceAPI01
+        WHERE SupplierInvoice = @ls_fact-PurchasingHistoryDocument
+          AND FiscalYear      = @ls_fact-PurchasingHistoryDocumentYear
+        INTO @DATA(lv_reverse).
+
+      " Si la factura no se encuentra en SupplierInvoice (no debería pasar) o
+      " si ReverseDocument está vacío → factura vigente.
+      IF sy-subrc <> 0 OR lv_reverse IS INITIAL.
+        lv_existe_vigente = abap_true.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_existe_vigente = abap_true.
+      ev_ok      = abap_false.
+      ev_mensaje = 'OC-HES ya presenta una factura en SAP'.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD validate_monto.
     ev_ok = abap_false.
 
     DATA(lv_tol_pct) = get_config( 'TOL_PORCENTAJE' ).
     DATA(lv_tol_clp) = get_config( 'TOL_MONTO_CLP'  ).
-    IF lv_tol_pct = 0. lv_tol_pct = 5.     ENDIF.
+    IF lv_tol_pct = 0. lv_tol_pct = '1.5'. ENDIF.
     IF lv_tol_clp = 0. lv_tol_clp = 10000. ENDIF.
 
     DATA(lv_monto_pend) = get_monto_pendiente(
@@ -1019,14 +1143,21 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " El saldo pendiente (lv_monto_pend) es el valor NETO del documento de
+    " referencia (OC/HES/EM) sin impuestos. Por lo tanto el monto del DTE a
+    " comparar también debe ser el neto (MntNeto + MntExe), no el MntTotal que
+    " incluye IVA/otros impuestos.
+    DATA lv_monto_dte_neto TYPE p LENGTH 15 DECIMALS 2.
+    lv_monto_dte_neto = is_dte-monto_neto + is_dte-monto_exento.
+
     DATA lv_monto_dte_clp TYPE p LENGTH 15 DECIMALS 2.
     IF is_dte-moneda = 'CLP' OR is_dte-moneda IS INITIAL.
-      lv_monto_dte_clp = is_dte-monto_total.
+      lv_monto_dte_clp = lv_monto_dte_neto.
     ELSE.
       DATA(lv_tc) = get_tipo_cambio(
         iv_moneda = is_dte-moneda
         iv_fecha  = is_dte-fecha_emision ).
-      lv_monto_dte_clp = is_dte-monto_total * lv_tc.
+      lv_monto_dte_clp = lv_monto_dte_neto * lv_tc.
     ENDIF.
 
     DATA lv_diferencia   TYPE p LENGTH 15 DECIMALS 2.
@@ -1040,9 +1171,9 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       lv_tol_aplicada = lv_tol_clp.
     ENDIF.
 
-    IF lv_diferencia > lv_tol_aplicada.
+    IF lv_diferencia >= lv_tol_aplicada.
       ev_ok      = abap_false.
-      ev_mensaje = |Monto DTE ({ lv_monto_dte_clp } CLP) difiere del saldo pendiente|
+      ev_mensaje = |Monto neto DTE ({ lv_monto_dte_clp } CLP) difiere del saldo pendiente|
                && | ({ lv_monto_pend } CLP) en { lv_diferencia } CLP.|
                && | Tolerancia máxima: { lv_tol_aplicada } CLP.|
                && ' Si la EM es parcial, use "Indicar Posiciones".'.
@@ -1394,7 +1525,13 @@ CLASS zcl_dte_processor IMPLEMENTATION.
       WHERE Currency = @iv_moneda
       INTO @DATA(lv_converted).
 
-    rv_tc = CONV wrbtr( lv_converted ).
+    " CURRENCY_CONVERSION devuelve el monto en la moneda target respetando sus
+    " decimales internos (TCURX). Para CLP (0 decimales) el resultado viene
+    " "shifted" 2 posiciones (ej. 899,86 CLP se lee como 8,9986). Hay que
+    " des-shiftarlo ×100 para obtener el tipo de cambio real. Se multiplica
+    " antes de convertir a wrbtr para no perder los decimales del TC.
+    DATA(lv_factor_clp) = get_currency_shift_factor( CONV waers( 'CLP' ) ).
+    rv_tc = lv_converted * lv_factor_clp.
 
     IF rv_tc = 0.
       rv_tc = 1.

@@ -29,10 +29,12 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
         ls_res_feat-%features-%action-IndicarPosiciones = COND #(
           WHEN ls_feat-Estado = '04' THEN if_abap_behv=>fc-o-enabled
           ELSE if_abap_behv=>fc-o-disabled ).
-        " Contabilizar habilitado sólo cuando todas las validaciones pasaron ('02').
-        ls_res_feat-%features-%action-Contabilizar = COND #(
-          WHEN ls_feat-Estado = '02' THEN if_abap_behv=>fc-o-enabled
-          ELSE if_abap_behv=>fc-o-disabled ).
+        " La contabilización es automática al superar las validaciones (no existe
+        " estado intermedio '02' Validado). El reintento ante un '05' (No procesado)
+        " se hace con Reprocesar, que vuelve a '01', re-valida y re-contabiliza de
+        " forma segura (incluye el guard validate_factura_existente). Por eso la
+        " acción manual Contabilizar queda deshabilitada.
+        ls_res_feat-%features-%action-Contabilizar = if_abap_behv=>fc-o-disabled.
       ENDIF.
 
       IF ls_feat-Estado = '04'.
@@ -207,8 +209,10 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
   METHOD auto_process.
     " Determination on modify: cuando llega FechaRecepcionSii y el registro
     " está en estado '01', dispara el processor para correr todas las
-    " validaciones. Si pasan, el estado queda en '02' (Validado); la
-    " contabilización se hace luego desde la action manual Contabilizar.
+    " validaciones. Si pasan, process_dte contabiliza automáticamente (registro
+    " de factura vía API): el estado resultante es '06' (Contabilizado) si la API
+    " responde OK, o '05' (No procesado) si falla. No hay estado intermedio
+    " '02' (Validado): el '02' (Aprobado) lo asigna luego el proceso del SII.
     READ ENTITIES OF zi_dte_monitor IN LOCAL MODE
       ENTITY DteMonitor ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_ap)
@@ -707,7 +711,7 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
       MODIFY ENTITIES OF zi_dte_monitor IN LOCAL MODE
         ENTITY DteMonitor
           UPDATE FIELDS ( Estado LogProcesamiento BukrsSap ProveedorSap
-                          AnioEntradaMercancia
+                          AnioEntradaMercancia DocumentoFacturaSap AnioFacturaSap
                           FechaModificacion UsuarioModificacion )
           WITH VALUE #( (
             %tky                 = VALUE #( TipoDte   = ls_rm-tipo_dte
@@ -718,6 +722,8 @@ CLASS lhc_dtemonitor IMPLEMENTATION.
             BukrsSap             = lv_bukrs_rm
             ProveedorSap         = lv_prov_rm
             AnioEntradaMercancia = lv_year_em_rm
+            DocumentoFacturaSap  = lv_doc_rm
+            AnioFacturaSap       = lv_year_fc_rm
             FechaModificacion    = lv_date_rm
             UsuarioModificacion  = lv_user_rm
           ) ).

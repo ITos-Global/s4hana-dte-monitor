@@ -30,24 +30,19 @@ define root view entity ZI_DTE_MONITOR
         when '04' then cast( 2 as abap.int1 )
         when '05' then cast( 1 as abap.int1 )
         when '06' then cast( 5 as abap.int1 )
+        when '07' then cast( 2 as abap.int1 )
         else            cast( 0 as abap.int1 )
       end                           as Criticality,
 
       m.waers                       as Moneda,
-      @Semantics.amount.currencyCode: 'Moneda'
-      m.monto_n                     as MontoNeto,
-      @Semantics.amount.currencyCode: 'Moneda'
-      m.monto_ex                    as MontoExento,
-      @Semantics.amount.currencyCode: 'Moneda'
-      m.iec                         as Iec,
-      @Semantics.amount.currencyCode: 'Moneda'
-      m.iva_rec                     as IvaRecuperable,
-      @Semantics.amount.currencyCode: 'Moneda'
-      m.iva_nrec                    as IvaNoRecuperable,
-      @Semantics.amount.currencyCode: 'Moneda'
-      m.iva_ret                     as IvaRetenido,
-      @Semantics.amount.currencyCode: 'Moneda'
-      m.total_doc                   as TotalDocumento,
+      // Montos del DTE expuestos como valor externo para evitar reescalado por moneda en Fiori.
+      cast( GET_NUMERIC_VALUE( m.monto_n ) as abap.dec( 15, 2 ) )     as MontoNeto,
+      cast( GET_NUMERIC_VALUE( m.monto_ex ) as abap.dec( 15, 2 ) )    as MontoExento,
+      cast( GET_NUMERIC_VALUE( m.iec ) as abap.dec( 15, 2 ) )         as Iec,
+      cast( GET_NUMERIC_VALUE( m.iva_rec ) as abap.dec( 15, 2 ) )     as IvaRecuperable,
+      cast( GET_NUMERIC_VALUE( m.iva_nrec ) as abap.dec( 15, 2 ) )    as IvaNoRecuperable,
+      cast( GET_NUMERIC_VALUE( m.iva_ret ) as abap.dec( 15, 2 ) )     as IvaRetenido,
+      cast( GET_NUMERIC_VALUE( m.total_doc ) as abap.dec( 15, 2 ) )   as TotalDocumento,
 
       m.doc_fact                    as DocumentoFacturaSap,
       m.year_fact                   as AnioFacturaSap,

@@ -18,6 +18,7 @@ define behavior for ZC_DTE_MONITOR alias DteMonitor
   use action RefrescarMasivo;
 
   use function GetMontosPendientes;
+  use function GetPosicionesEm;
 
   use association _Historial { create; }
 }

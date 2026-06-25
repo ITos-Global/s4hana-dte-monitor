@@ -6,9 +6,7 @@ CLASS zcl_dte_cleanup DEFINITION
   PUBLIC SECTION.
     INTERFACES if_oo_adt_classrun.
 
-    " Limpia las tablas del Monitor DTE.
-    " - iv_only_historial = abap_true → sólo zdte_monitor_h (preserva el monitor)
-    " - iv_only_historial = abap_false (default) → borra ambas
+
     CLASS-METHODS truncate_all
       IMPORTING iv_only_historial TYPE abap_bool DEFAULT abap_false
       EXPORTING ev_rows_monitor   TYPE i
@@ -19,7 +17,9 @@ CLASS zcl_dte_cleanup DEFINITION
 ENDCLASS.
 
 
-CLASS zcl_dte_cleanup IMPLEMENTATION.
+
+CLASS ZCL_DTE_CLEANUP IMPLEMENTATION.
+
 
   METHOD truncate_all.
     ev_rows_monitor   = 0.
@@ -40,6 +40,7 @@ CLASS zcl_dte_cleanup IMPLEMENTATION.
     COMMIT WORK.
   ENDMETHOD.
 
+
   METHOD if_oo_adt_classrun~main.
     " Punto de entrada para ejecución vía F9 en ADT (Console Run).
     DATA lv_rows_m TYPE i.
@@ -54,5 +55,4 @@ CLASS zcl_dte_cleanup IMPLEMENTATION.
     out->write( |zdte_monitor:   { lv_rows_m } filas borradas| ).
     out->write( |Listo.| ).
   ENDMETHOD.
-
 ENDCLASS.

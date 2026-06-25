@@ -17,6 +17,7 @@ define view entity ZVH_DTE_ESTADO
         when '04' then 'Por rechazar'
         when '05' then 'No procesado'
         when '06' then 'Contabilizado'
+        when '07' then 'Analisis usuario'
         else            estado
       end               as EstadoText
 }
